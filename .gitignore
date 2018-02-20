@@ -1,2 +1,4 @@
 train.csv
 test.csv
+tdidf.pkl
+sentence_vectors.pkl
