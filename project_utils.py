@@ -1,4 +1,5 @@
 import numpy as np
+import tensorflow as tf
 
 kColumnNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
                 'identity_hate']
@@ -45,4 +46,17 @@ def get_train_dev_split(df, train_prop, seed=kTrainSplitSeed):
   ntrain = int(df.shape[0] * train_prop)
   df = df.sample(frac=1)
   return df[:ntrain], df[ntrain - df.shape[0]:]
+
+def sparse_mat_to_sparse_tensor(scipy_sparse):
+  """Converts a sparse matrix to a tensor object.
+  
+  Args:
+    scipy_sparse: a scipy sparse CSR matrix
+  Returns:
+    tf_sparse: a tensorflow sparse matrix
+  """
+  coo = scipy_sparse.tocoo()
+  indices = np.mat([coo.row, coo.col]).transpose()
+  tf_sparse = tf.SparseTensor(indices, coo.data, coo.shape)
+  return tf_sparse
       
