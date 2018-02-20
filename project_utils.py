@@ -1,4 +1,8 @@
 import numpy as np
+import pandas as pd
+
+kColumnNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
+                'identity_hate']
 
 
 def get_label(row):
@@ -21,8 +25,19 @@ def get_labels(rows):
   """Converts an array of one-hot rows to labels with get_label.
   
   Args:
-    rows: an array of one-hot rows, some may not have ones
+    rows: an array of one-hot rows, some may not have ones.
   Returns:
     labels: a column vector of labels, one for each row.
   """
   return np.apply_along_axis(get_label, 1, rows)
+
+def make_labels_from_df(df):
+  """Converts jigsaw-formatted pandas df into vector of labels.
+  
+  Args:
+    df: a pandas.DataFrame of any subset of the jigsaw data.
+  Returns:
+    labels: a column vector of labels corresponding to the rows of df.
+  """
+  rows = df.as_matrix(kColumnNames)
+  return get_labels(rows)
