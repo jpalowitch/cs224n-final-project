@@ -3,6 +3,8 @@ import numpy as np
 kColumnNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
                 'identity_hate']
 
+kTrainSplitSeed = 12345
+
 
 def get_base2_labels(rows):
   """Converts a matrix of binary row vectors to labels.
@@ -28,4 +30,19 @@ def get_base2_onehots(rows):
   one_vec = np.ones((rows.shape[0],))
   base2_mat[range(rows.shape[0]), get_base2_labels(rows)] = one_vec
   return base2_mat
+
+def get_train_dev_split(df, train_prop, seed=kTrainSplitSeed):
+  """Takes pd.DataFrame from load of data and gives a train/dev split.
+  
+  Args:
+    data: a pd.DataFrame of the jigsaw data.
+    train_prop: proportion of data you want for the training set.
+    seed: an integer random seed for the split.
+  Returns:
+    train: training data.
+    dev: testing data.
+  """
+  ntrain = int(df.shape[0] * train_prop)
+  df = df.sample(frac=1)
+  return df[:ntrain], df[ntrain - df.shape[0]:]
       
