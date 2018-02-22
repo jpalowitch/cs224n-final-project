@@ -1,4 +1,7 @@
 numpy
 pandas
 sklearn
+nltk
+pickle
+string
 scipy
