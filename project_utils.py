@@ -1,10 +1,11 @@
 import numpy as np
 import tensorflow as tf
 
-kColumnNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
-                'identity_hate']
-
-kTrainSplitSeed = 12345
+# Constants
+kClassNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
+               'identity_hate']
+kSplitSeed = 123454321
+kSplitProp = [3.0, 1.0, 1.0]
 
 
 def get_base2_labels(rows):
@@ -32,20 +33,41 @@ def get_base2_onehots(rows):
   base2_mat[range(rows.shape[0]), get_base2_labels(rows)] = one_vec
   return base2_mat
 
-def get_train_dev_split(df, train_prop, seed=kTrainSplitSeed):
+def get_onehots_from_labels(labels):
+  """Converts an np integer vector of labels into a matrix of one-hot vectors.
+  
+  Args:
+    labels: an integer vector of labels:
+  Returns:
+    onehots: a row matrix of one-hots. Each row as a 1 in position i if i is the
+    position of the row's integer in the ordered integer labels.
+  """
+  unique_labs = list(set(labels))
+  label_indx = [unique_labs.index(x) for x in labels]
+  one_vec = np.ones((labels.shape[0], ))
+  onehots = np.zeros((labels.shape[0], len(unique_labs)))
+  onehots[range(labels.shape[0]), label_indx] = one_vec
+  return onehots
+
+def get_TDT_split(df, split_prop=kSplitProp, seed=kSplitSeed):
   """Takes pd.DataFrame from load of data and gives a train/dev split.
   
   Args:
     data: a pd.DataFrame of the jigsaw data.
-    train_prop: proportion of data you want for the training set.
+    split_prop: a list of floats which is proportional to data split. 
     seed: an integer random seed for the split.
   Returns:
     train: training data.
-    dev: testing data.
+    dev: development data.
+    test: testing data.
   """
-  ntrain = int(df.shape[0] * train_prop)
+  ndata = [int(df.shape[0] * x / sum(split_prop)) for x in split_prop]
+  ndata[2] = ndata[2] + df.shape[0] - sum(ndata)
   df = df.sample(frac=1)
-  return df[:ntrain], df[ntrain - df.shape[0]:]
+  train = df[:ndata[0]]
+  dev = df[ndata[0]:(ndata[0] + ndata[1])]
+  test = df[ndata[2] - df.shape[0]:]
+  return train, dev, test
 
 def sparse_mat_to_sparse_tensor(scipy_sparse):
   """Converts a sparse matrix to a tensor object.
