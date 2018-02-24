@@ -10,7 +10,7 @@ kSplitProp = [3.0, 1.0, 1.0]
 
 def get_base2_labels(rows):
   """Converts a matrix of binary row vectors to labels.
-  
+
   Args:
     rows: an array of binary vectors.
   Returns:
@@ -21,7 +21,7 @@ def get_base2_labels(rows):
 
 def get_base2_onehots(rows):
   """Converts a matrix of binary row vectors to one-hot label vectors.
-  
+
   Args:
     rows: an array of binary vectors.
   Returns:
@@ -35,7 +35,7 @@ def get_base2_onehots(rows):
 
 def get_onehots_from_labels(labels):
   """Converts an np integer vector of labels into a matrix of one-hot vectors.
-  
+
   Args:
     labels: an integer vector of labels:
   Returns:
@@ -51,10 +51,10 @@ def get_onehots_from_labels(labels):
 
 def get_TDT_split(df, split_prop=kSplitProp, seed=kSplitSeed):
   """Takes pd.DataFrame from load of data and gives a train/dev split.
-  
+
   Args:
     data: a pd.DataFrame of the jigsaw data.
-    split_prop: a list of floats which is proportional to data split. 
+    split_prop: a list of floats which is proportional to data split.
     seed: an integer random seed for the split.
   Returns:
     train: training data.
@@ -71,7 +71,7 @@ def get_TDT_split(df, split_prop=kSplitProp, seed=kSplitSeed):
 
 def sparse_mat_to_sparse_tensor(scipy_sparse):
   """Converts a sparse matrix to a tensor object.
-  
+
   Args:
     scipy_sparse: a scipy sparse CSR matrix
   Returns:
