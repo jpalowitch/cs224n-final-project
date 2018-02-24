@@ -21,7 +21,7 @@ NUM_FEATURES = 1000
 # NOTE: implementation based off of
 # https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/2_BasicModels/random_forest.py
 class Config:
-    """ Contains the hyper parameters and configuration for the random forest model
+    """ Contains the hyper parameters and configuration for the random forest model.
     """
     num_classes = 64
     num_features = 1000
@@ -32,7 +32,11 @@ class Config:
 
 
 def vectorize_corpus_tf_idf(df, path=SENTENCE_VECTORS_FILE):
-    """ vectorizes the corpus using tf-idf
+    """ Vectorizes the corpus using tf-idf.
+
+    Args:
+        df: input data, pandas data frame
+        path: path to data file
     """
     if os.path.isfile(path):
         # with open(TFIDF_VECTOR_FILE, "rb") as fp:
@@ -67,6 +71,9 @@ def vectorize_corpus_tf_idf(df, path=SENTENCE_VECTORS_FILE):
 
 
 class RandomForest():
+    """Builds a random forest model for training.
+
+    """
     def __init__(self, config):
         self.config = config
         self.inputs_placeholder = None
@@ -74,6 +81,9 @@ class RandomForest():
         self.forest_graph = None
 
     def add_graph(self):
+        """ Builds the forest graph based off of the hyper parameters in Config.
+
+        """
         hyper_parameters = tensor_forest.ForestHParams(num_classes=self.config.num_classes,
                                                             num_features=self.config.num_features,
                                                             num_trees=self.config.num_trees,
@@ -81,35 +91,81 @@ class RandomForest():
         self.forest_graph = tensor_forest.RandomForestGraphs(hyper_parameters)
 
     def create_feed_dict(self, inputs, labels):
+        """ Creates a dictionary to feed data into the model
+
+        Returns:
+            Feed dictionary
+        """
         return {
             self.inputs_placeholder: inputs,
             self.labels_placeholder: labels
         }
 
     def add_placeholders(self):
+        """Adds placeholder values to the model for reading batches of data
+
+        """
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=[None, self.config.num_features])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=[None])
 
     def add_training_op(self):
+        """ Adds the training operator.
+
+        Returns:
+            The training operator
+        """
         train_op = self.forest_graph.training_graph(self.inputs_placeholder, self.labels_placeholder)
         return train_op
 
     def add_loss_op(self):
+        """ Adds the loss operator.
+
+        Returns:
+            The loss operator
+        """
         loss_op = self.forest_graph.training_loss(self.inputs_placeholder, self.labels_placeholder)
         return loss_op
 
     def add_accuracy_op(self):
+        """ Calculates the error and adds the accuracy operators.
+
+        Returns:
+            The accuracy operator.
+        """
         infer_op, _, _ = self.forest_graph.inference_graph(self.inputs_placeholder)
         correct_prediction = tf.equal(tf.argmax(infer_op, 1), tf.cast(self.labels_placeholder, tf.int64))
         accuracy_op = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-        return accuracy_op, correct_prediction
+        return accuracy_op
 
     def train_on_batch(self, inputs_batch, labels_batch, sess, train_op, loss_op):
+        """Trains the model on the minibatch.
+
+        Args:
+            inputs_batch: feature vector batch
+            labels_batch: labels batch
+            sess: current TensorFlow session
+            train_op: training operator
+            loss_op: operator for calculating loss
+
+        Returns:
+            The loss on batch.
+
+        """
         feed_dict = self.create_feed_dict(inputs_batch, labels_batch)
         _, loss = sess.run([train_op, loss_op], feed_dict=feed_dict)
         return loss
 
-    def do_train(self, train_op, loss_op, accuracy_op, correct_prediction, sess, sentence_vectors, label_vectors):
+    def do_train(self, train_op, loss_op, accuracy_op, sess, sentence_vectors, label_vectors):
+        """Iterates over the number of epochs and trains the model by each minibatch.
+
+        Args:
+            train_op: training operator
+            loss_op: operator for calculating loss
+            accuracy_op: operator for calculating accuracy
+            sess: current TensorFlow session
+            sentence_vectors: features vectors
+            label_vectors: labels
+        """
         loss = 0.0
         for i in range(self.config.num_steps):
             for inputs, labels in minibatch(sentence_vectors[:], label_vectors[:], self.config.batch_size):
@@ -121,19 +177,41 @@ class RandomForest():
                 print('Step %i, Loss: %f, Acc: %f' % (i, loss, acc))
 
     def build(self):
+        """Builds the model and returns the operators.
+
+        Returns:
+            train_op: training operator
+            loss_op: operator for calculating loss
+            accuracy_op: operator for calculating accuracy
+        """
         self.add_placeholders()
         self.add_graph()
         train_op = self.add_training_op()
         loss_op = self.add_loss_op()
-        accuracy_op, correct_prediction = self.add_accuracy_op()
-        return [train_op, loss_op, accuracy_op, correct_prediction]
+        accuracy_op = self.add_accuracy_op()
+        return [train_op, loss_op, accuracy_op]
 
     def do_test(self, test_vectors, test_labels, accuracy_op, session):
+        """Tests the model once the accuracy operator has been trained.
+
+        Args:
+            test_vectors: test set feature vectors
+            test_labels: test set labels
+            accuracy_op: trained accracy operator
+            session: current TensorFlow session
+        """
         feed_dict = self.create_feed_dict(test_vectors, test_labels)
-        print("Test Accuracy:", session.run(accuracy_op, feed_dict=feed_dict)) # 0.8969104
+        print("Test Accuracy:", session.run(accuracy_op, feed_dict=feed_dict))
 
 
-def train_model(sentence_vectors, labels, dev):
+def train_and_test_model(sentence_vectors, labels, dev):
+    """Trains and tests random forest model.
+
+    Args:
+        sentence_vectors: vectorized sentences of toxic comments
+        labels: list of classes corresponding to each sentence
+        dev: set to test model on
+    """
     # initialize model and build it
     config = Config()
     forest_model = RandomForest(config)
@@ -144,7 +222,6 @@ def train_model(sentence_vectors, labels, dev):
                         resources.initialize_resources(resources.shared_resources()))
 
     with tf.Session() as session:
-    # session = tf.Session()
         session.run(init_vars)
 
         # add args
@@ -162,12 +239,17 @@ def train_model(sentence_vectors, labels, dev):
 
 
 def minibatch(inputs, labels, batch_size, shuffle=True):
-    """
-
-    Implementation based off of stack overflow post:
+    """ Performs minibatching on set of data. Based off of stack overflow post:
     https://stackoverflow.com/questions/38157972/how-to-implement-mini-batch-gradient-descent-in-python
+
+    Args:
+        inputs: feature matrix
+        labels: label vector
+        batch_size: size of batch to sample
+        shuffle: whether to randomly shuffle indices
+    Returns:
+        a batch of inputs and labels
     """
-    # print('inputs shape: {} labels shape: {}'.format(inputs.shape, labels.shape))
     assert inputs.shape[0] == labels.shape[0]
     if shuffle:
         indices = np.arange(inputs.shape[0])
@@ -184,4 +266,4 @@ if __name__ == "__main__":
     # train
     sentence_vectors = vectorize_corpus_tf_idf(train)
     labels = get_base2_labels(train[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
-    train_model(sentence_vectors, labels, dev)
+    train_and_test_model(sentence_vectors, labels, dev)
