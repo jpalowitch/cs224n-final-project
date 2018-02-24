@@ -20,6 +20,7 @@ NUM_FEATURES = 1000
 # NOTE: this requires Python 3, so make sure create a virtualenv with it
 # NOTE: implementation based off of
 # https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/2_BasicModels/random_forest.py
+
 class Config:
     """ Contains the hyper parameters and configuration for the random forest model.
     """
@@ -155,7 +156,7 @@ class RandomForest():
         _, loss = sess.run([train_op, loss_op], feed_dict=feed_dict)
         return loss
 
-    def do_train(self, train_op, loss_op, accuracy_op, sess, sentence_vectors, label_vectors):
+    def do_train(self, train_op, loss_op, accuracy_op, sess, features, labels):
         """Iterates over the number of epochs and trains the model by each minibatch.
 
         Args:
@@ -163,16 +164,16 @@ class RandomForest():
             loss_op: operator for calculating loss
             accuracy_op: operator for calculating accuracy
             sess: current TensorFlow session
-            sentence_vectors: features vectors
-            label_vectors: labels
+            features: features vectors
+            labels: labels
         """
         loss = 0.0
         for i in range(self.config.num_steps):
-            for inputs, labels in minibatch(sentence_vectors[:], label_vectors[:], self.config.batch_size):
-                loss += self.train_on_batch(inputs, labels, sess, train_op, loss_op)
+            for inputs_batch, labels_batch in minibatch(features[:], labels[:], self.config.batch_size):
+                loss += self.train_on_batch(inputs_batch, labels_batch, sess, train_op, loss_op)
 
             if i % 10 == 0 or i == 1:
-                feed_dict = self.create_feed_dict(inputs, labels)
+                feed_dict = self.create_feed_dict(inputs_batch, labels_batch)
                 acc = sess.run(accuracy_op, feed_dict=feed_dict)
                 print('Step %i, Loss: %f, Acc: %f' % (i, loss, acc))
 
@@ -204,13 +205,14 @@ class RandomForest():
         print("Test Accuracy:", session.run(accuracy_op, feed_dict=feed_dict))
 
 
-def train_and_test_model(sentence_vectors, labels, dev):
+def train_and_test_model(train_features, train_labels, test_features, test_labels):
     """Trains and tests random forest model.
 
     Args:
-        sentence_vectors: vectorized sentences of toxic comments
-        labels: list of classes corresponding to each sentence
-        dev: set to test model on
+        train_features: training features
+        train_labels: training labels
+        test_features: testing features
+        test_labels: testing labels
     """
     # initialize model and build it
     config = Config()
@@ -223,19 +225,15 @@ def train_and_test_model(sentence_vectors, labels, dev):
 
     with tf.Session() as session:
         session.run(init_vars)
-
         # add args
         operators.append(session)
-        operators.append(sentence_vectors)
-        operators.append(labels)
+        operators.append(train_features)
+        operators.append(train_labels)
         # train
         loss, accuracy_op = forest_model.do_train(*operators)
-        print('final train loss: {}'.format(loss))
-
+        print("Final train loss: {}".format(loss))
         # test
-        sentence_vectors_dev = vectorize_corpus_tf_idf(dev, path="dev_sentence_vectors.pkl")
-        labels = get_base2_labels(dev[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
-        forest_model.do_test(sentence_vectors_dev, labels, accuracy_op, session)
+        forest_model.do_test(test_features, test_labels, accuracy_op, session)
 
 
 def minibatch(inputs, labels, batch_size, shuffle=True):
@@ -263,7 +261,11 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
 
 if __name__ == "__main__":
     train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-    # train
+    # test
     sentence_vectors = vectorize_corpus_tf_idf(train)
     labels = get_base2_labels(train[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
-    train_and_test_model(sentence_vectors, labels, dev)
+    # dev
+    dev_sentence_vectors = vectorize_corpus_tf_idf(dev, path="dev_sentence_vectors.pkl")
+    dev_labels = get_base2_labels(dev[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
+    # run it
+    train_and_test_model(sentence_vectors, labels, dev_sentence_vectors, dev_labels)
