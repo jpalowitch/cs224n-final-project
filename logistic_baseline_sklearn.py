@@ -8,7 +8,12 @@ from sklearn.metrics import roc_auc_score
 from scipy.sparse import hstack
 
   
-def get_features(train_text, dev_text, vocab):
+def get_features(
+  train_text, 
+  dev_text, 
+  vocab, 
+  sparse=True,
+  max_features=10000):
   """Gets feature mats for train and test
   
   Args:
@@ -29,7 +34,7 @@ def get_features(train_text, dev_text, vocab):
     token_pattern=r'\w{1,}',
     stop_words='english',
     ngram_range=(1, 2),
-    max_features=10000)
+    max_features=max_features)
 
   # Getting features
   word_vectorizer.fit(vocab)
@@ -37,6 +42,9 @@ def get_features(train_text, dev_text, vocab):
   dev_word_features = word_vectorizer.transform(dev_text)
   train_features = hstack([train_word_features])
   dev_features = hstack([dev_word_features])
+  if not sparse:
+    train_features = train_features.toarray()
+    dev_features = dev_features.toarray()
   
   return train_features, dev_features
 
