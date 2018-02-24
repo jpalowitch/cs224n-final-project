@@ -26,7 +26,7 @@ class Config:
     """
     num_classes = 64
     num_features = 1000
-    num_steps = 500
+    num_steps = 150
     batch_size = 1024
     num_trees = 10
     max_nodes = 1000
@@ -38,6 +38,8 @@ def vectorize_corpus_tf_idf(df, path=SENTENCE_VECTORS_FILE):
     Args:
         df: input data, pandas data frame
         path: path to data file
+    Returns:
+        sentence_vectors: sentences vectorized using tf-idf
     """
     if os.path.isfile(path):
         # with open(TFIDF_VECTOR_FILE, "rb") as fp:
@@ -73,7 +75,6 @@ def vectorize_corpus_tf_idf(df, path=SENTENCE_VECTORS_FILE):
 
 class RandomForest():
     """Builds a random forest model for training.
-
     """
     def __init__(self, config):
         self.config = config
@@ -83,7 +84,6 @@ class RandomForest():
 
     def add_graph(self):
         """ Builds the forest graph based off of the hyper parameters in Config.
-
         """
         hyper_parameters = tensor_forest.ForestHParams(num_classes=self.config.num_classes,
                                                             num_features=self.config.num_features,
@@ -104,7 +104,6 @@ class RandomForest():
 
     def add_placeholders(self):
         """Adds placeholder values to the model for reading batches of data
-
         """
         self.inputs_placeholder = tf.placeholder(tf.float32, shape=[None, self.config.num_features])
         self.labels_placeholder = tf.placeholder(tf.int32, shape=[None])
@@ -113,7 +112,7 @@ class RandomForest():
         """ Adds the training operator.
 
         Returns:
-            The training operator
+            train_op: tensor for training model
         """
         train_op = self.forest_graph.training_graph(self.inputs_placeholder, self.labels_placeholder)
         return train_op
@@ -122,7 +121,7 @@ class RandomForest():
         """ Adds the loss operator.
 
         Returns:
-            The loss operator
+            loss_op: tensor for evaluating loss
         """
         loss_op = self.forest_graph.training_loss(self.inputs_placeholder, self.labels_placeholder)
         return loss_op
@@ -131,7 +130,7 @@ class RandomForest():
         """ Calculates the error and adds the accuracy operators.
 
         Returns:
-            The accuracy operator.
+            accuracy_op: tensor for evaluating model
         """
         infer_op, _, _ = self.forest_graph.inference_graph(self.inputs_placeholder)
         correct_prediction = tf.equal(tf.argmax(infer_op, 1), tf.cast(self.labels_placeholder, tf.int64))
@@ -147,9 +146,8 @@ class RandomForest():
             sess: current TensorFlow session
             train_op: training operator
             loss_op: operator for calculating loss
-
         Returns:
-            The loss on batch.
+            loss: the loss on batch.
 
         """
         feed_dict = self.create_feed_dict(inputs_batch, labels_batch)
@@ -166,6 +164,9 @@ class RandomForest():
             sess: current TensorFlow session
             features: features vectors
             labels: labels
+        Returns:
+            loss: final loss
+            accuracy_op: trained predictor
         """
         loss = 0.0
         for i in range(self.config.num_steps):
@@ -176,6 +177,7 @@ class RandomForest():
                 feed_dict = self.create_feed_dict(inputs_batch, labels_batch)
                 acc = sess.run(accuracy_op, feed_dict=feed_dict)
                 print('Step %i, Loss: %f, Acc: %f' % (i, loss, acc))
+        return loss, accuracy_op
 
     def build(self):
         """Builds the model and returns the operators.
@@ -265,7 +267,10 @@ if __name__ == "__main__":
     sentence_vectors = vectorize_corpus_tf_idf(train)
     labels = get_base2_labels(train[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
     # dev
-    dev_sentence_vectors = vectorize_corpus_tf_idf(dev, path="dev_sentence_vectors.pkl")
-    dev_labels = get_base2_labels(dev[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
+    # dev_sentence_vectors = vectorize_corpus_tf_idf(dev, path="dev_sentence_vectors.pkl")
+    # dev_labels = get_base2_labels(dev[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
+    # test
+    test_sentence_vectors = vectorize_corpus_tf_idf(test, path="test_sentence_vectors.pkl")
+    test_labels = get_base2_labels(test[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
     # run it
-    train_and_test_model(sentence_vectors, labels, dev_sentence_vectors, dev_labels)
+    train_and_test_model(sentence_vectors, labels, test_sentence_vectors, test_labels)

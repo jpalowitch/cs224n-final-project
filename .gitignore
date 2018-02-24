@@ -5,3 +5,4 @@ sentence_vectors.pkl
 tensorflow3*
 dev_sentence_vectors.pkl
 __pycache__*
+test_sentence_vectors.pkl
