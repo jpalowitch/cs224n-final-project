@@ -31,7 +31,6 @@ class Config:
     num_trees = 10
     max_nodes = 1000
 
-
 def vectorize_corpus_tf_idf(df, path=SENTENCE_VECTORS_FILE):
     """ Vectorizes the corpus using tf-idf.
 
@@ -263,7 +262,7 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
 
 if __name__ == "__main__":
     train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-    # test
+    # train
     sentence_vectors = vectorize_corpus_tf_idf(train)
     labels = get_base2_labels(train[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
     # dev
