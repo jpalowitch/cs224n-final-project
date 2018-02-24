@@ -18,13 +18,14 @@ train_data = pd.read_csv(TRAIN_DATA_FILE)
 NUM_FEATURES = 1000
 
 # NOTE: this requires Python 3, so make sure create a virtualenv with it
-
+# NOTE: implementation based off of
+# https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/2_BasicModels/random_forest.py
 class Config:
     """ Contains the hyper parameters and configuration for the random forest model
     """
     num_classes = 64
     num_features = 1000
-    num_steps = 1000000
+    num_steps = 500
     batch_size = 1024
     num_trees = 10
     max_nodes = 1000
@@ -108,23 +109,16 @@ class RandomForest():
         _, loss = sess.run([train_op, loss_op], feed_dict=feed_dict)
         return loss
 
-    def do_train(self, train_op, loss_op, accuracy_op, correct_prediction, sess, sentence_vectors, labels):
+    def do_train(self, train_op, loss_op, accuracy_op, correct_prediction, sess, sentence_vectors, label_vectors):
         loss = 0.0
-        #TODO: implement actual batching...
-        for i in range(0, self.config.num_steps - self.config.batch_size, self.config.batch_size):
+        for i in range(self.config.num_steps):
+            for inputs, labels in minibatch(sentence_vectors[:], label_vectors[:], self.config.batch_size):
+                loss += self.train_on_batch(inputs, labels, sess, train_op, loss_op)
 
-            # need to transpose the sentence vector into row vector
-            sentence_transpose = sentence_vectors[i:(i + self.config.batch_size)]
-            label = labels[i:(i + self.config.batch_size)]
-            loss += self.train_on_batch(sentence_transpose, label, sess, train_op, loss_op)
-
-            if i % 50 == 0 or i == 1:
-                feed_dict = self.create_feed_dict(sentence_transpose, label)
+            if i % 10 == 0 or i == 1:
+                feed_dict = self.create_feed_dict(inputs, labels)
                 acc = sess.run(accuracy_op, feed_dict=feed_dict)
-                print('accuracy: {}'.format(acc))
-                # print('correct_prediction: {}'.format(sess.run(correct_prediction)))
                 print('Step %i, Loss: %f, Acc: %f' % (i, loss, acc))
-        return loss, accuracy_op
 
     def build(self):
         self.add_placeholders()
@@ -165,6 +159,25 @@ def train_model(sentence_vectors, labels, dev):
         sentence_vectors_dev = vectorize_corpus_tf_idf(dev, path="dev_sentence_vectors.pkl")
         labels = get_base2_labels(dev[["toxic", "severe_toxic", "obscene", "threat", "insult", "identity_hate"]].values[:])
         forest_model.do_test(sentence_vectors_dev, labels, accuracy_op, session)
+
+
+def minibatch(inputs, labels, batch_size, shuffle=True):
+    """
+
+    Implementation based off of stack overflow post:
+    https://stackoverflow.com/questions/38157972/how-to-implement-mini-batch-gradient-descent-in-python
+    """
+    # print('inputs shape: {} labels shape: {}'.format(inputs.shape, labels.shape))
+    assert inputs.shape[0] == labels.shape[0]
+    if shuffle:
+        indices = np.arange(inputs.shape[0])
+        np.random.shuffle(indices)
+    for i in range(0, inputs.shape[0] - batch_size + 1, batch_size):
+        if shuffle:
+            batch = indices[i:(i + batch_size)]
+        else:
+            batch = slice(i, i + batch_size)
+        yield inputs[batch], labels[batch]
 
 if __name__ == "__main__":
     train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
