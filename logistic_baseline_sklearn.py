@@ -4,9 +4,12 @@ import pandas as pd
 from project_utils import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import roc_auc_score
+from sklearn.metrics import roc_auc_score, accuracy_score
 from scipy.sparse import hstack
 
+RUN_CLASSES = range(6)
+APPROACH = "Logistic"
+FLAVOR = "sklearn-SAG"
   
 def get_features(
   train_text, 
@@ -24,7 +27,7 @@ def get_features(
     train_features: a sparse matrix of word ngram features from train
     dev_features: a sparse matrix of word ngram features from dev
   """
-
+  
   # Getting word vectorizer
   print('word featurizing...')
   word_vectorizer = TfidfVectorizer(
@@ -35,7 +38,7 @@ def get_features(
     stop_words='english',
     ngram_range=(1, 2),
     max_features=max_features)
-
+  
   # Getting features
   word_vectorizer.fit(vocab)
   train_word_features = word_vectorizer.transform(train_text)
@@ -69,22 +72,27 @@ def fit_model(train, dev):
     vocab=pd.concat([train_text, dev_text, test_text]))
   
   # Doing one-vs-all training
-  scores = []
-  for class_name in kClassNames:
+  auc_scores = []
+  for class_name in [kClassNames[x] for x in RUN_CLASSES]:
     print('doing class {}'.format(class_name))
+    
+    # Training model
     train_target = train[class_name]
-    dev_target = get_onehots_from_labels(dev[class_name].values)
     classifier = LogisticRegression(solver='sag')
     model = classifier.fit(train_features, train_target)
+    
+    # Computing ROC
     dev_pred = model.predict_proba(dev_features)
+    dev_target = get_onehots_from_labels(dev[class_name].values)
     ROC_AUC_score = roc_auc_score(dev_target, dev_pred)
-    scores.append(ROC_AUC_score)
-    print('--CV score is {}'.format(ROC_AUC_score))
-
-  return np.mean(scores)
+    auc_scores.append(ROC_AUC_score)
+    print('--AUC score is {}'.format(ROC_AUC_score))
+  
+  return auc_scores
 
 
 if __name__ == '__main__':
   train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-  avg_ROC_AUC = fit_model(train, dev)
-  print('Total CV score is {}'.format(avg_ROC_AUC))
+  auc_scores = fit_model(train, dev)
+  save_auc_scores(auc_scores, APPROACH, FLAVOR)
+  print('Avg ROC score is {}'.format(np.mean(auc_scores)))

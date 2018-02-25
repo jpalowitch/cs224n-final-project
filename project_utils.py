@@ -1,5 +1,8 @@
+import os
 import numpy as np
+import pandas as pd
 import tensorflow as tf
+
 
 # Constants
 kClassNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
@@ -81,4 +84,32 @@ def sparse_mat_to_sparse_tensor(scipy_sparse):
   indices = np.mat([coo.row, coo.col]).transpose()
   tf_sparse = tf.SparseTensor(indices, coo.data, coo.shape)
   return tf_sparse
+
+def save_auc_scores(scores, approach, flavor, 
+                    fn="auc_scores.csv", overwrite=True):
+  """Records auc scores of approach-flavor run.
+  
+  Args:
+    scores: a list or array of 6 auc scores
+    approach: string that names the approach
+    flavor: string that names the flavor
+    fn: output filename
+    overwrite: if True, will overwrite a previous result with the same 
+      approach & flavor
+  Returns:
+    None
+  """
+  new_data_d = {"Approach": approach, "Flavor": flavor}
+  new_data_d.update(zip(kClassNames, scores))
+  if os.path.isfile(fn):
+    old_data = pd.read_csv(fn, index_col=0)
+    new_data = pd.DataFrame(data=new_data_d, index=[old_data.shape[0]])
+    old_data = old_data.append(new_data)
+    if overwrite:
+      old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'])
+  else:
+    old_data = pd.DataFrame(data=new_data_d, index=[0])
+  old_data.to_csv(fn)
+  return None
+    
       
