@@ -12,13 +12,14 @@ from project_utils import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from logistic_baseline_sklearn import get_features
 from scipy.sparse import csr
+from sklearn.metrics import roc_auc_score
 
 import pandas as pd
 
 # Parameters
 learning_rate = 0.01
-training_epochs = 25
-batch_size = 100
+training_epochs = 50
+batch_size = 1000
 display_step = 1
 n_features = 10000
 target_class = 0
@@ -38,15 +39,18 @@ train_target = get_onehots_from_labels(train[kClassNames[target_class]].values)
 dev_labels = dev[kClassNames[target_class]].values
 dev_target = get_onehots_from_labels(dev_labels)
 num_examples = train_features.shape[0]
+n_classes = train_target.shape[1]
 
 # tf Graph Input
 x = tf.placeholder(tf.float32, [None, n_features])
-y = tf.placeholder(tf.float32, [None, 2])
-y_labs = tf.placeholder(tf.float32, [None, ])
+y = tf.placeholder(tf.float32, [None, n_classes])
 
 # Set model weights
-W = tf.Variable(tf.zeros([n_features, 2]))
-b = tf.Variable(tf.zeros([2]))
+W = tf.get_variable(
+      "weights",
+      shape=[n_features, n_classes],
+      initializer=tf.contrib.layers.xavier_initializer())
+b = tf.Variable(tf.zeros([n_classes]))
 
 # Construct model
 pred = tf.nn.softmax(tf.matmul(x, W) + b) # Softmax
@@ -55,15 +59,14 @@ pred = tf.nn.softmax(tf.matmul(x, W) + b) # Softmax
 cost = tf.reduce_mean(-tf.reduce_sum(y*tf.log(pred), reduction_indices=1))
 
 # Gradient Descent
-optimizer = tf.train.GradientDescentOptimizer(learning_rate).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Final scoring
-auc_score = tf.metrics.auc(y_labs, pred[:, 1], num_thresholds=200)
-#auc_score = tf.cast(aucs, tf.float32)
+def AUC_calc(X, Y): 
+  return roc_auc_score(Y[:, 1], pred.eval({x: X})[:, 1])
 
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
-local_init = tf.local_variables_initializer()
 
 # Start training
 with tf.Session() as sess:
@@ -89,25 +92,7 @@ with tf.Session() as sess:
       print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(avg_cost))
   
   print("Optimization Finished!")
-  
-  first_30 = sess.run(pred[0:20], feed_dict={x: dev_features, y: dev_target})
-  print(first_30)
-  first_30 = sess.run(y[0:20], feed_dict={y: dev_target})
-  print(first_30)
-  
-  sess.run(local_init)
-  # Print dev auc
-  s = sess.run(auc_score, feed_dict={x: dev_features, 
-                                     y: dev_target,
-                                     y_labs: dev_labels})
-  # print("AUC_score:", auc_score.eval({x: dev_features, y: dev_target}))
-  print("Accuracy:", s)
-  
-  # Print dev acc
-  correct_prediction = tf.equal(tf.argmax(pred, 1), tf.argmax(y, 1))
-  accuracy = tf.reduce_mean(tf.cast(correct_prediction, tf.float32))
-  print("Accuracy:", accuracy.eval({x: dev_features, y: dev_target}))
+  print ("AUC_ROC:", AUC_calc(dev_features, dev_target))
   
   sess.close()
 
-print(dev[0:20])
