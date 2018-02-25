@@ -66,8 +66,8 @@ global_init = tf.global_variables_initializer()
 
 auc_scores = []
 for target_class in range(6):
-  train_target = get_onehots_from_labels(train[kClassNames[target_class]].values)
-  dev_labels = dev[kClassNames[target_class]].values
+  train_target = get_onehots_from_labels(train[CLASS_NAMES[target_class]].values)
+  dev_labels = dev[CLASS_NAMES[target_class]].values
   dev_target = get_onehots_from_labels(dev_labels)
   num_examples = train_features.shape[0]
 

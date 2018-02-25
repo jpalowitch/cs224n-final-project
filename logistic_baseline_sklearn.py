@@ -73,7 +73,7 @@ def fit_model(train, dev):
   
   # Doing one-vs-all training
   auc_scores = []
-  for class_name in [kClassNames[x] for x in RUN_CLASSES]:
+  for class_name in [CLASS_NAMES[x] for x in RUN_CLASSES]:
     print('doing class {}'.format(class_name))
     
     # Training model

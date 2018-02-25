@@ -5,10 +5,10 @@ import tensorflow as tf
 
 
 # Constants
-kClassNames = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
+CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
                'identity_hate']
-kSplitSeed = 123454321
-kSplitProp = [3.0, 1.0, 1.0]
+SPLIT_SEED = 123454321
+SPLIT_PROP = [3.0, 1.0, 1.0]
 
 
 def get_base2_labels(rows):
@@ -52,7 +52,7 @@ def get_onehots_from_labels(labels):
   onehots[range(labels.shape[0]), label_indx] = one_vec
   return onehots
 
-def get_TDT_split(df, split_prop=kSplitProp, seed=kSplitSeed):
+def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
   """Takes pd.DataFrame from load of data and gives a train/dev split.
 
   Args:
@@ -100,7 +100,7 @@ def save_auc_scores(scores, approach, flavor,
     None
   """
   new_data_d = {"Approach": approach, "Flavor": flavor}
-  new_data_d.update(zip(kClassNames, scores))
+  new_data_d.update(zip(CLASS_NAMES, scores))
   if os.path.isfile(fn):
     old_data = pd.read_csv(fn, index_col=0)
     new_data = pd.DataFrame(data=new_data_d, index=[old_data.shape[0]])
