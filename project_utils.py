@@ -1,15 +1,21 @@
 import os
+import pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
 
+from sklearn.feature_extraction.text import TfidfVectorizer
+from scipy.sparse import hstack
 
 # Constants
 CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
                'identity_hate']
 SPLIT_SEED = 123454321
+RUN_SEED = 543212345
 SPLIT_PROP = [3.0, 1.0, 1.0]
-
+TFIDF_VECTORS_FILE = "tfidf_sentence_vectors.pkl"
+TRAIN_DATA_FILE = "train.csv"
+NUM_FEATURES = 10000
 
 def get_base2_labels(rows):
   """Converts a matrix of binary row vectors to labels.
@@ -66,6 +72,7 @@ def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
   """
   ndata = [int(df.shape[0] * x / sum(split_prop)) for x in split_prop]
   ndata[2] = ndata[2] + df.shape[0] - sum(ndata)
+  np.random.seed(seed)
   df = df.sample(frac=1)
   train = df[:ndata[0]]
   dev = df[ndata[0]:(ndata[0] + ndata[1])]
@@ -112,4 +119,58 @@ def save_auc_scores(scores, approach, flavor,
   old_data.to_csv(fn)
   return None
     
-      
+def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE,
+                            n_features=NUM_FEATURES, sparse=False):
+    """ Vectorizes the corpus using tf-idf. Saves in sparse format. Also saves
+        the vectorizer object for potential later use on new examples.
+
+    Args:
+        train: train split of kaggle-formatted data
+        dev: dev split of kaggle-formatted data
+        test: test split of kaggle-formatted data
+        path: path to data file
+        n_features: max number of ngram features to count
+        sparse: if True, returns feature vecs in original sparse format. Else,
+            they are returned as numpy arrays
+    Returns:
+        train_vecs: tfidf vectors for training data
+        dev_vecs: tfidf vectors for dev data
+        test_vecs: tfidf vectors for test data
+    """
+    # Computing and saving
+    if os.path.isfile(path):
+        print("Using stored word vectors.")
+        with open(path, "rb") as fp:
+            sentence_vectors = pickle.load(fp)
+    else:
+        print("Word vector file path not found. Computing word vectors.")
+        vectorizer = TfidfVectorizer(
+            max_features=n_features,
+            sublinear_tf=True,
+            strip_accents='unicode',
+            analyzer='word',
+            token_pattern=r'\w{1,}',
+            stop_words='english',
+            ngram_range=(1, 2)
+        )
+        train_text = train['comment_text']
+        dev_text = dev['comment_text']
+        test_text = test['comment_text']
+        vectorizer.fit(pd.concat([train_text, dev_text, test_text]))
+        sentence_vectors = {
+            'train_vecs': hstack([vectorizer.transform(train_text)]),
+            'dev_vecs': hstack([vectorizer.transform(dev_text)]),
+            'test_vecs': hstack([vectorizer.transform(test_text)]),
+            'vectorizer': vectorizer}
+        with open(path, "wb") as fp:
+            pickle.dump(sentence_vectors, fp)
+    
+    # Extracting and returning
+    train_vecs = sentence_vectors['train_vecs']
+    dev_vecs = sentence_vectors['dev_vecs']
+    test_vecs = sentence_vectors['test_vecs']
+    if not sparse:
+        train_vecs = train_vecs.toarray()
+        dev_vecs = dev_vecs.toarray()
+        test_vecs = test_vecs.toarray()
+    return train_vecs, dev_vecs, test_vecs
