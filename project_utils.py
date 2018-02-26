@@ -5,6 +5,7 @@ import pandas as pd
 import tensorflow as tf
 
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics import roc_auc_score
 from scipy.sparse import hstack
 
 # Constants
@@ -79,7 +80,7 @@ def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
     test = df[-ndata[2]:]
     return train, dev, test
 
-def sparse_tens_from_sparse_mat(scipy_sparse):
+def get_sparse_input(scipy_sparse):
     """Produces needed input to tf.sparse_placeholder from a csr matrix
 
     Args:
@@ -92,6 +93,26 @@ def sparse_tens_from_sparse_mat(scipy_sparse):
     indices = np.mat([coo.row, coo.col]).transpose()
     sparse_input = (indices, coo.data, coo.shape)
     return sparse_input
+
+def calc_auc(labels, probs):
+    """Takes an array of *individual probabilities* and a comparison array of
+       binary indiicators and computes the average ROC AUC for the entire array.
+
+    Args:
+       labels: a binary indicator array
+       probs: an array with each entry between 0 and 1 (unrestricted by other
+           entries)
+    Returns:
+       scalar, average ROC-AUC of probs
+    """
+    aucs = []
+    if len(probs.shape) > 1:
+        for i in range(probs.shape[1]):
+            aucs.append(roc_auc_score(labels[:, i], probs[:, i]))
+    else:
+        aucs.append(roc_auc_score(labels, probs))
+    return np.mean(aucs)
+
 
 def save_auc_scores(scores, approach, classifier, flavor, 
                     fn="auc_scores.csv", overwrite=True):
@@ -120,7 +141,11 @@ def save_auc_scores(scores, approach, classifier, flavor,
         new_data = pd.DataFrame(data=new_data_d, index=[old_data.shape[0]])
         old_data = old_data.append(new_data)
         if overwrite:
-            old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'])
+            old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'],
+                                                keep='last')
+        else:
+            old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'],
+                                                keep='first')            
     else:
         old_data = pd.DataFrame(data=new_data_d, index=[0])
     old_data.to_csv(fn)
