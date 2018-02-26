@@ -9,7 +9,6 @@ Project: https://github.com/aymericdamien/TensorFlow-Examples/
 from __future__ import print_function
 from project_utils import *
 from sklearn.feature_extraction.text import TfidfVectorizer
-from logistic_baseline_sklearn import get_features
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
 
@@ -23,28 +22,20 @@ learning_rate = 0.01
 training_epochs = 50
 batch_size = 1000
 display_step = 1
-n_features = 10000
 
-# Get data and featurize
+# Get data and featurizing
 train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-train_text = train['comment_text']
-dev_text = dev['comment_text']
-test_text = test['comment_text']
-train_features, dev_features = get_features(
-  train_text=train['comment_text'],
-  dev_text=dev['comment_text'],
-  vocab=pd.concat([train_text, dev_text, test_text]),
-  sparse=False,
-  max_features=n_features)
+train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(train, dev, test)
+n_train = train_vecs.shape[0]
 
 # tf Graph Input
-x = tf.placeholder(tf.float32, [None, n_features])
+x = tf.placeholder(tf.float32, [None, NUM_FEATURES])
 y = tf.placeholder(tf.float32, [None, 2])
 
 # Set model weights
 W = tf.get_variable(
       "weights",
-      shape=[n_features, 2],
+      shape=[NUM_FEATURES, 2],
       initializer=tf.contrib.layers.xavier_initializer())
 b = tf.Variable(tf.zeros([2]))
 
@@ -66,10 +57,12 @@ global_init = tf.global_variables_initializer()
 
 auc_scores = []
 for target_class in range(6):
-  train_target = get_onehots_from_labels(train[CLASS_NAMES[target_class]].values)
-  dev_labels = dev[CLASS_NAMES[target_class]].values
-  dev_target = get_onehots_from_labels(dev_labels)
-  num_examples = train_features.shape[0]
+
+  # Getting labels for training
+  train_labels = train[CLASS_NAMES[target_class]].values
+  train_target = get_onehots_from_labels(train_labels)
+  test_labels = test[CLASS_NAMES[target_class]].values
+  test_target = get_onehots_from_labels(test_labels)
 
   # Start training
   with tf.Session() as sess:
@@ -80,12 +73,12 @@ for target_class in range(6):
     # Training 
     for epoch in range(training_epochs):
       avg_cost = 0.
-      total_batch = int(num_examples/batch_size)
+      total_batch = int(n_train/batch_size)
       # Loop over batches
       for i in range(total_batch):
-        upper_indx = min((i + 1) * batch_size, num_examples)
+        upper_indx = min((i + 1) * batch_size, n_train)
         i_indxs = range(i * batch_size, upper_indx)
-        batch_xs = train_features[i_indxs]
+        batch_xs = train_vecs[i_indxs]
         batch_ys = train_target[i_indxs]
         _, c = sess.run([optimizer, cost], feed_dict={x: batch_xs,
                                                       y: batch_ys})
@@ -95,11 +88,10 @@ for target_class in range(6):
         print("Epoch:", '%04d' % (epoch+1), "cost=", "{:.9f}".format(avg_cost))
     
     print("Optimization Finished!")
-    AUC = AUC_calc(dev_features, dev_target)
+    AUC = AUC_calc(test_vecs, test_target)
     print ("AUC_ROC:", AUC)
     auc_scores.append(AUC)
     
     sess.close()
-
 
 save_auc_scores(auc_scores, APPROACH, FLAVOR)

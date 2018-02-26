@@ -76,7 +76,7 @@ def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
   df = df.sample(frac=1)
   train = df[:ndata[0]]
   dev = df[ndata[0]:(ndata[0] + ndata[1])]
-  test = df[ndata[2] - df.shape[0]:]
+  test = df[-ndata[2]:]
   return train, dev, test
 
 def sparse_mat_to_sparse_tensor(scipy_sparse):
