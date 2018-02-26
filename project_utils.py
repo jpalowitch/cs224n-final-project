@@ -94,7 +94,7 @@ def get_sparse_input(scipy_sparse):
     sparse_input = (indices, coo.data, coo.shape)
     return sparse_input
 
-def calc_auc(labels, probs):
+def calc_auc(labels, probs, mean=True):
     """Takes an array of *individual probabilities* and a comparison array of
        binary indiicators and computes the average ROC AUC for the entire array.
 
@@ -102,6 +102,8 @@ def calc_auc(labels, probs):
        labels: a binary indicator array
        probs: an array with each entry between 0 and 1 (unrestricted by other
            entries)
+       mean: if True, returns mean of column-wise AUC. if False, returns aucs
+           across columns.
     Returns:
        scalar, average ROC-AUC of probs
     """
@@ -111,7 +113,10 @@ def calc_auc(labels, probs):
             aucs.append(roc_auc_score(labels[:, i], probs[:, i]))
     else:
         aucs.append(roc_auc_score(labels, probs))
-    return np.mean(aucs)
+    if mean:
+        return np.mean(aucs)
+    else:
+        return aucs
 
 
 def save_auc_scores(scores, approach, classifier, flavor, 
@@ -141,11 +146,11 @@ def save_auc_scores(scores, approach, classifier, flavor,
         new_data = pd.DataFrame(data=new_data_d, index=[old_data.shape[0]])
         old_data = old_data.append(new_data)
         if overwrite:
-            old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'],
-                                                keep='last')
+            old_data = old_data.drop_duplicates(
+                subset=['Approach', 'Classifier', 'Flavor'], keep='last')
         else:
-            old_data = old_data.drop_duplicates(subset=['Approach', 'Flavor'],
-                                                keep='first')            
+            old_data = old_data.drop_duplicates(
+                subset=['Approach', 'Classifier', 'Flavor'], keep='first')            
     else:
         old_data = pd.DataFrame(data=new_data_d, index=[0])
     old_data.to_csv(fn)
