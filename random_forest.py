@@ -236,30 +236,6 @@ def train_and_test_model(train_features, train_labels, test_features, test_label
         # test
         forest_model.do_test(test_features, test_labels, accuracy_op, session)
 
-
-def minibatch(inputs, labels, batch_size, shuffle=True):
-    """ Performs minibatching on set of data. Based off of stack overflow post:
-    https://stackoverflow.com/questions/38157972/how-to-implement-mini-batch-gradient-descent-in-python
-
-    Args:
-        inputs: feature matrix
-        labels: label vector
-        batch_size: size of batch to sample
-        shuffle: whether to randomly shuffle indices
-    Returns:
-        a batch of inputs and labels
-    """
-    assert inputs.shape[0] == labels.shape[0]
-    if shuffle:
-        indices = np.arange(inputs.shape[0])
-        np.random.shuffle(indices)
-    for i in range(0, inputs.shape[0] - batch_size + 1, batch_size):
-        if shuffle:
-            batch = indices[i:(i + batch_size)]
-        else:
-            batch = slice(i, i + batch_size)
-        yield inputs[batch], labels[batch]
-
 if __name__ == "__main__":
     train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
     # train
