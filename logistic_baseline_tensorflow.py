@@ -11,9 +11,10 @@ CLASSIFIER = "logistic"
 FLAVOR = "tensorflow-ADAM"
 
 # Parameters
-learning_rate = 0.01
+learning_rate = 0.001
 training_epochs = 50
-batch_size = 1000
+beta_reg = 0.0001
+batch_size = 100
 display_step = 1
 
 # Get data and featurizing
@@ -44,7 +45,8 @@ pred = tf.nn.softmax(theta)
 
 # Get cost directly (without needing prediction above)
 cost = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits_v2(logits=theta, labels=y)
+    tf.nn.softmax_cross_entropy_with_logits(logits=theta, labels=y) + \
+        tf.nn.l2_loss(W) * beta_reg
 )
 
 # Gradient Descent
@@ -80,11 +82,9 @@ for target_class in range(6):
             total_batch = int(n_train/batch_size)
             
             # Loop over batches
-            for i in range(total_batch):
-                upper_indx = min((i + 1) * batch_size, n_train)
-                i_indxs = range(i * batch_size, upper_indx)
-                batch_xs = get_sparse_input(train_vecs[i_indxs])
-                batch_ys = train_target[i_indxs]
+            minibatches = minibatch(train_vecs, train_target, batch_size)
+            for batch_xs_mat, batch_ys in minibatches:
+                batch_xs = get_sparse_input(batch_xs_mat)
                 _, c = sess.run([optimizer, cost], feed_dict={x: batch_xs,
                                                               y: batch_ys})
                 avg_cost += c / total_batch

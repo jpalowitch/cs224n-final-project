@@ -12,7 +12,8 @@ FLAVOR = "tensorflow-ADAM"
 
 # Parameters
 learning_rate = 0.01
-training_epochs = 50
+training_epochs = 150
+beta_reg = 0.0001
 batch_size = 1000
 display_step = 1
 
@@ -28,6 +29,7 @@ if batch_size is None:
 # tf Graph Input
 x = tf.sparse_placeholder(tf.float32)
 y = tf.placeholder(tf.float32, [None, 6])
+lr = tf.placeholder(tf.float32, ())
 
 # Set model weights
 W = tf.get_variable("weights",
@@ -43,11 +45,12 @@ pred = tf.nn.sigmoid(theta)
 
 # Get cost directly (without needing prediction above)
 cost = tf.reduce_mean(
-    tf.nn.sigmoid_cross_entropy_with_logits(logits=theta, labels=y)
+    tf.nn.sigmoid_cross_entropy_with_logits(logits=theta, labels=y) + \
+        tf.nn.l2_loss(W) * beta_reg
 )
 
 # Gradient Descent
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(cost)
 
 # Final scoring
 def calc_auc_tf(X, Y): 
@@ -56,7 +59,8 @@ def calc_auc_tf(X, Y):
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
-auc_scores = []    
+auc_scores = []  
+current_lr = learning_rate  
 # Start training
 with tf.Session() as sess:
 
@@ -67,15 +71,16 @@ with tf.Session() as sess:
     for epoch in range(training_epochs):
         avg_cost = 0.
         total_batch = int(n_train/batch_size)
-        
+
         # Loop over batches
-        for i in range(total_batch):
-            upper_indx = min((i + 1) * batch_size, n_train)
-            i_indxs = range(i * batch_size, upper_indx)
-            batch_xs = get_sparse_input(train_vecs[i_indxs])
-            batch_ys = train[CLASS_NAMES].iloc[i_indxs].as_matrix()
+        current_lr = current_lr * 0.975
+        train_target = train[CLASS_NAMES].as_matrix()
+        minibatches = minibatch(train_vecs, train_target, batch_size)
+        for batch_xs_mat, batch_ys in minibatches:
+            batch_xs = get_sparse_input(batch_xs_mat)
             _, c = sess.run([optimizer, cost], feed_dict={x: batch_xs,
-                                                          y: batch_ys})
+                                                          y: batch_ys,
+                                                          lr: current_lr})
             avg_cost += c / total_batch
         
         # Display logs
@@ -84,7 +89,8 @@ with tf.Session() as sess:
             AUC = calc_auc(dev[CLASS_NAMES].as_matrix(), pred_mat)
             print("Epoch:", '%04d' % (epoch+1), 
                   "cost=", avg_cost,
-                  "dev.auc=", AUC)
+                  "dev.auc=", AUC,
+                  "learning.rate=", current_lr)
     
     print("Optimization Finished!")
 

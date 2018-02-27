@@ -6,7 +6,7 @@ from tensorflow.contrib.tensor_forest.python import tensor_forest
 from tensorflow.python.ops import resources
 import pandas as pd
 import pickle
-from project_utils import get_base2_labels, get_TDT_split
+from project_utils import get_base2_labels, get_TDT_split, minibatch
 
 os.environ["CUDA_VISIBLE_DEVICES"] = ""
 TRAIN_DATA_FILE = "train.csv"
