@@ -56,6 +56,11 @@ optimizer = tf.train.AdamOptimizer(learning_rate=lr).minimize(cost)
 def calc_auc_tf(X, Y): 
     return calc_auc(Y[:, 0], pred.eval({x: X})[:, 0])
 
+# Making weight saving functionality
+saver = tf.train.Saver()
+save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR)
+max_auc = 0
+
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
@@ -91,10 +96,15 @@ with tf.Session() as sess:
                   "cost=", avg_cost,
                   "dev.auc=", AUC,
                   "learning.rate=", current_lr)
+            if AUC > max_auc:
+                print ("New best AUC on dev!")
+                saver.save(sess, save_fn)
+                max_auc = AUC
     
     print("Optimization Finished!")
 
     # Computing final AUC scores
+    saver.restore(sess, save_fn)
     pred_mat = pred.eval({x: get_sparse_input(test_vecs)})
     auc_scores = calc_auc(test[CLASS_NAMES].as_matrix(), pred_mat, mean=False)
     

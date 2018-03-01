@@ -4,6 +4,7 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
 
+import os
 import pandas as pd
 
 APPROACH = "ngram"
@@ -56,6 +57,9 @@ optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 def calc_auc_tf(X, Y): 
     return calc_auc(Y[:, 1], pred.eval({x: X})[:, 1])
 
+# Making weight saving functionality
+saver = tf.train.Saver()
+
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
@@ -70,7 +74,11 @@ for target_class in range(6):
     test_labels = test[CLASS_NAMES[target_class]].values
     test_target = get_onehots_from_labels(test_labels)
     
+    # Getting weight saver fn
+    save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR, CLASS_NAMES[target_class])
+
     # Start training
+    max_auc = 0
     with tf.Session() as sess:
     
         # Run initializer
@@ -95,10 +103,15 @@ for target_class in range(6):
                 print("Epoch:", '%04d' % (epoch+1), 
                       "cost=", avg_cost,
                       "dev.auc=", AUC)
+                if AUC > max_auc:
+                    print ("New best AUC on dev!")
+                    saver.save(sess, save_fn)
+                    max_auc = AUC
         
         print("Optimization Finished!")
+        saver.restore(sess, save_fn)
         AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
-        print ("AUC_ROC:", AUC)
+        print ("Test AUC:", AUC)
         auc_scores.append(AUC)
         
         sess.close()

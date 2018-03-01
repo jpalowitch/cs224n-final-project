@@ -17,6 +17,7 @@ SPLIT_PROP = [3.0, 1.0, 1.0]
 TFIDF_VECTORS_FILE = "tfidf_sentence_vectors.pkl"
 TRAIN_DATA_FILE = "train.csv"
 NUM_FEATURES = 10000
+SESS_SAVE_DIRECTORY = "sess_saves"
 
 def get_base2_labels(rows):
     """Converts a matrix of binary row vectors to labels.
@@ -234,3 +235,7 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
         else:
             batch = slice(i, i + batch_size)
         yield inputs[batch], labels[batch]
+
+def saver_fn(approach, classifier, flavor, class_name='all'):
+    return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
+        approach, classifier, flavor, class_name)
