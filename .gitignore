@@ -9,3 +9,9 @@ test_sentence_vectors.pkl
 sess_saves/
 auc_scores.csv
 project_utils.pyc
+glove.42B.300d.txt
+glove.6B/
+glove.6B.embeddings.pkl
+tf/
+train_embeddings.pkl
+glove_tokenized_sentences.pkl
