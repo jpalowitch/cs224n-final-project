@@ -1,5 +1,6 @@
 from __future__ import print_function
 from project_utils import *
+from word_embeddings.py import *
 from rnn_cell.py import RNNCell
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
@@ -22,7 +23,7 @@ learning_rate = 0.001
 beta_reg = 0.0001
 hidden_size = 256
 batch_size = 100
-embed_size = 300
+embed_size = 50
 max_length = 100
 display_step = 1
 dropout_rate = 0.5
@@ -35,6 +36,7 @@ train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
 n_train = train_vecs.shape[0]
 if batch_size is None:
     batch_size = train.shape[0]
+train_inputs = get_embedding
 
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
@@ -66,17 +68,18 @@ with tf.variable_scope("RNN"):
 
 # Sum the hidden layers and predict on that    
 hlayers_sum = tf.add_n(hlayers) 
-theta = tf.add(tf.matmul(hlayers_sum, U), b2)
-pred = tf.nn.softmax(theta)
+logits = tf.add(tf.matmul(hlayers_sum, U), b2)
+pred = tf.nn.softmax(logits)
 
-# Get cost directly (without needing prediction above)
-cost = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(logits=theta, labels=y) + \
-        tf.nn.l2_loss(U) * beta_reg
+# Get loss
+ces = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=tf.boolean_mask(logits, mask), 
+            labels=tf.boolean_mask(labels, mask)
 )
+loss = tf.reduce_mean(ces)
 
 # Gradient Descent
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
 # Final scoring
 def calc_auc_tf(X, Y): 
@@ -121,6 +124,7 @@ for target_class in range(6):
             for batch_xs_mat, batch_ys in minibatches:
                 batch_xs = get_sparse_input(batch_xs_mat)
                 _, c = sess.run([optimizer, cost], feed_dict={inputs: batch_xs,
+                                                              mask: batch_mask,
                                                               labels: batch_ys})
                 avg_cost += c / total_batch
             
