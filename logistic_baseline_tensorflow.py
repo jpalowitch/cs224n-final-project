@@ -3,9 +3,14 @@ from project_utils import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
+from sys import argv
 
 import os
 import pandas as pd
+
+# Getting command args
+# -nettype: either 'zero' or 'one', giving the number of hidden layers
+myargs = getopts(argv)
 
 APPROACH = "ngram"
 CLASSIFIER = "logistic"
@@ -13,10 +18,10 @@ FLAVOR = "tensorflow-ADAM"
 
 # Parameters
 learning_rate = 0.001
-training_epochs = 50
-beta_reg = 0.0001
+hidden_size = 256
 batch_size = 100
 display_step = 1
+dropout_rate = 0.5
 
 # Get data and featurizing
 train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
@@ -32,14 +37,31 @@ if batch_size is None:
 x = tf.sparse_placeholder(tf.float32)
 y = tf.placeholder(tf.float32, [None, 2])
 
-# Set model weights
-W = tf.get_variable("weights",
-                    shape=[NUM_FEATURES, 2],
-                    initializer=tf.contrib.layers.xavier_initializer())
-b = tf.Variable(tf.zeros([2]))
-
-# Final layer
-theta = tf.sparse_tensor_dense_matmul(x, W) + b
+# Constructing middle layers
+if myargs['-nettype'] == 'zero':
+    beta_reg = 0.0001
+    training_epochs = 50
+    W = tf.get_variable("weights",
+                        shape=[NUM_FEATURES, 2],
+                        initializer=tf.contrib.layers.xavier_initializer())
+    b = tf.Variable(tf.zeros([2]))
+    theta = tf.sparse_tensor_dense_matmul(x, W) + b
+elif myargs['-nettype'] == 'one':
+    beta_reg = 0.0001
+    FLAVOR = "tensorflow-ADAM-1layer"
+    training_epochs = 10
+    W = tf.get_variable("weights",
+                        shape=[NUM_FEATURES, hidden_size],
+                        initializer=tf.contrib.layers.xavier_initializer())
+    b = tf.Variable(tf.zeros([hidden_size]))
+    z = tf.sparse_tensor_dense_matmul(x, W) + b
+    h = tf.nn.relu(z)
+    h_drop = tf.nn.dropout(h, 1 - dropout_rate)
+    W2 = tf.get_variable("weights2",
+                     shape=[hidden_size, 2],
+                     initializer=tf.contrib.layers.xavier_initializer())
+    b2 = tf.Variable(tf.zeros([2]))
+    theta = tf.matmul(h_drop, W2) + b2
 
 # Get prediction (this will only be used for testing)
 pred = tf.nn.softmax(theta)
@@ -63,8 +85,10 @@ saver = tf.train.Saver()
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
+
 auc_scores = []
 for target_class in range(6):
+    print("doing class " + CLASS_NAMES[target_class])
     
     # Getting labels for training
     train_labels = train[CLASS_NAMES[target_class]].values
@@ -117,3 +141,4 @@ for target_class in range(6):
         sess.close()
 
 save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
+

@@ -239,3 +239,20 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
 def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
         approach, classifier, flavor, class_name)
+        
+def getopts(argv):
+    """ Gets and parses command-line arguments.
+    
+    Args:
+        inputs: the argument input object
+    Returns:
+        the parsed arguments
+    """
+    opts = {}
+    while argv:
+        if argv[0][0] == '-':
+            opts[argv[0]] = argv[1]
+        argv = argv[1:]
+    return opts
+    
+
