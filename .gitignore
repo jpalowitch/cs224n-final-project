@@ -1,11 +1,12 @@
 train.csv
 test.csv
-tdidf.pkl
-sentence_vectors.pkl
 tensorflow3*
-dev_sentence_vectors.pkl
 __pycache__*
-test_sentence_vectors.pkl
 sess_saves/
 auc_scores.csv
 project_utils.pyc
+glove.42B.300d.txt
+glove.6B/
+tf/
+*.pyc
+*.pkl

@@ -3,15 +3,13 @@ from sklearn.feature_extraction.text import CountVectorizer, TfidfVectorizer
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
 from sklearn.metrics import roc_auc_score
-from string import punctuation 
-from nltk import word_tokenize
-import pickle 
+import pickle
+from project_utils import tokenize
 
 path = "~/Google Drive/" #directory on emily's laptop
 KAGGLE_TRAIN = pd.read_csv(path + "train.csv")
 COMMENT = 'comment_text'
 LABELS = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', 'identity_hate']
-PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
 
 def split_data(KAGGLE_TRAIN):
 	'''
@@ -22,7 +20,7 @@ def split_data(KAGGLE_TRAIN):
 	'''
 	X = KAGGLE_TRAIN.iloc[:,:2]
 	y = KAGGLE_TRAIN.iloc[:,2:]
-	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4, 
+	X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.4,
 	random_state=94110)
 	X_dev, X_test, y_dev, y_test = train_test_split(X_test, y_test, test_size=0.5,
 	random_state=94110)
@@ -34,20 +32,11 @@ def split_data(KAGGLE_TRAIN):
 		d[COMMENT].fillna("unknown", inplace=True)
 	return train, dev, test
 
-def tokenize(comment):
-	'''
-	for one comment, tokenizes, removes punctuation and changes to lowercase
-	'''
-	words = word_tokenize(comment)
-	words = [w.lower() for w in words]
-	words = [w for w in words if w not in PUNCTUATION and not w.isdigit()]
-	return words
-
 
 def createDocTermMatrices(train, dev, test):
 	'''
-	creates TFidf document term matrix from pandas dataframe where 2nd column 
-	contains comments, 
+	creates TFidf document term matrix from pandas dataframe where 2nd column
+	contains comments,
 	removes punctuation from sentences and converts to lowercase
 	'''
 	vec = TfidfVectorizer(ngram_range=(1,2), tokenizer=tokenize,
@@ -86,14 +75,5 @@ if __name__ == "__main__":
 	y_dev = dev.iloc[:,2:]
 	print "running naive bayes model..."
 	preds = naive_bayes(train_dtm, dev_dtm, y_train)
-	auc = roc_auc_score(y_dev, preds) 
+	auc = roc_auc_score(y_dev, preds)
 	print "auc-roc: " +str(auc) #dev AUC SCORE: 0.836970136328
-	
-
-
-
-
-
-
-
-
