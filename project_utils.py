@@ -3,6 +3,9 @@ import pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+from nltk import word_tokenize
+from string import punctuation
+PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
 
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import roc_auc_score
@@ -120,26 +123,26 @@ def calc_auc(labels, probs, mean=True):
         return aucs
 
 
-def save_auc_scores(scores, approach, classifier, flavor, 
+def save_auc_scores(scores, approach, classifier, flavor,
                     fn="auc_scores.csv", overwrite=True):
     """Records auc scores of approach-flavor run.
 
-	   ***Before setting your approach/classifier/flavor strings, make sure to 
+	   ***Before setting your approach/classifier/flavor strings, make sure to
    	      check out the existing auc_scores.csv for formatting. This will help
 		  later to visualize results from particular approaches/classifiers.***
-    
+
     Args:
       scores: a list or array of 6 auc scores
       approach: string that names the approach
       flavor: string that names the flavor
       fn: output filename
-      overwrite: if True, will overwrite a previous result with the same 
+      overwrite: if True, will overwrite a previous result with the same
         approach & flavor
     Returns:
       None
     """
-    new_data_d = {"Approach": approach, 
-                  "Classifier": classifier, 
+    new_data_d = {"Approach": approach,
+                  "Classifier": classifier,
                   "Flavor": flavor}
     new_data_d.update(zip(CLASS_NAMES, scores))
     if os.path.isfile(fn):
@@ -151,12 +154,12 @@ def save_auc_scores(scores, approach, classifier, flavor,
                 subset=['Approach', 'Classifier', 'Flavor'], keep='last')
         else:
             old_data = old_data.drop_duplicates(
-                subset=['Approach', 'Classifier', 'Flavor'], keep='first')            
+                subset=['Approach', 'Classifier', 'Flavor'], keep='first')
     else:
         old_data = pd.DataFrame(data=new_data_d, index=[0])
     old_data.to_csv(fn)
     return None
-    
+
 def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE,
                             n_features=NUM_FEATURES, sparse=False):
     """ Vectorizes the corpus using tf-idf. Saves in sparse format. Also saves
@@ -202,7 +205,7 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE,
             'vectorizer': vectorizer}
         with open(path, "wb") as fp:
             pickle.dump(sentence_vectors, fp)
-    
+
     # Extracting and returning
     train_vecs = sentence_vectors['train_vecs']
     dev_vecs = sentence_vectors['dev_vecs']
@@ -239,3 +242,12 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
 def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
         approach, classifier, flavor, class_name)
+
+def tokenize(comment):
+	'''
+	for one comment, tokenizes, removes punctuation and changes to lowercase
+	'''
+	words = word_tokenize(comment)
+	words = [w.lower() for w in words]
+	words = [w for w in words if w not in PUNCTUATION and not w.isdigit()]
+	return words

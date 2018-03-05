@@ -3,14 +3,14 @@ import csv
 import os
 import numpy as np
 from keras.preprocessing.text import Tokenizer, text_to_word_sequence
-from project_utils import get_TDT_split
+from project_utils import get_TDT_split, tokenize
 import pickle
 GLOVE_DIRECTORY = "glove.6B"
 GLOVE_EMBEDDINGS = "glove.6B.embeddings.pkl"
 EMBEDDING_DIM = 50
 TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
-N_DIMENSIONS = 300
+N_DIMENSIONS = 50
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
 
 def vectorize_sentences_concat(df, embeddings):
@@ -59,13 +59,18 @@ def vectorize_sentences_sum(df, embeddings):
     """
     sentences = []
     for sentence in df:
-        vectorized_sentence = np.zeros(N_DIMENSIONS)
-        for word in sentence:
+        vectorized_sentence = np.zeros((N_DIMENSIONS,))
+        sentence_tokens = tokenize(sentence.decode("utf-8"))
+        added = False
+        for word in sentence_tokens:
             glove_vector = embeddings.get(word)
             # only add if in embedding
             if glove_vector is not None:
-                vectorized_sentence = np.add(vectorized_sentence, glove_vector)
+                vectorized_sentence = vectorized_sentence + glove_vector
+                added = True
 
+        if len(sentence_tokens) > 0 and added:
+            vectorized_sentence = np.divide(vectorized_sentence, float(len(sentence_tokens)))
         sentences.append(vectorized_sentence)
     return sentences
 
@@ -100,27 +105,27 @@ def get_tokenized_sentences(path="glove_tokenized_sentences.pkl", load_files=Tru
         test_tokenizer.fit_on_texts(test_df)
 
         embeddings = get_word_vectors()
-        train_vectors_concat, train_masks = vectorize_sentences_concat(train_df, embeddings)
-        dev_vectors_concat, dev_masks = vectorize_sentences_concat(dev_df, embeddings)
-        test_vectors_concat, test_masks = vectorize_sentences_concat(test_df, embeddings)
+        # train_vectors_concat, train_masks = vectorize_sentences_concat(train_df, embeddings)
+        # dev_vectors_concat, dev_masks = vectorize_sentences_concat(dev_df, embeddings)
+        # test_vectors_concat, test_masks = vectorize_sentences_concat(test_df, embeddings)
 
         sentence_vectors = {
             "train": {
                 "vectors_sum": vectorize_sentences_sum(train_df, embeddings),
-                "vectors_concat": train_vectors_concat,
-                "masks": train_masks,
+                # "vectors_concat": train_vectors_concat,
+                # "masks": train_masks,
                 "word_index": train_tokenizer.word_index
             },
             "dev": {
                 "vectors_sum": vectorize_sentences_sum(dev_df, embeddings),
-                "vectors_concat": dev_vectors_concat,
-                "masks": dev_masks,
+                # "vectors_concat": dev_vectors_concat,
+                # "masks": dev_masks,
                 "word_index": dev_tokenizer.word_index
             },
             "test": {
                 "vectors_sum": vectorize_sentences_sum(test_df, embeddings),
-                "vectors_concat": test_vectors_concat,
-                "masks": test_masks,
+                # "vectors_concat": test_vectors_concat,
+                # "masks": test_masks,
                 "word_index": test_tokenizer.word_index
             }
         }
@@ -144,8 +149,8 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
         return embeddings_index
     else:
         embeddings_index = {}
-        # glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.50d.txt"))
-        glove_vectors = open("glove.42B.300d.txt", "rb")
+        glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.50d.txt"))
+        # glove_vectors = open("glove.42B.300d.txt", "rb")
         for line in glove_vectors:
             values = line.split()
             word = values[0]
@@ -184,8 +189,7 @@ def get_embedding_matrix(path="embeddings.pkl", data_set="train", load_files=Tru
             pickle.dump(embedding_matrix, fp)
         return embedding_matrix
 
-
 if __name__ == "__main__":
-    # embeddings = get_embedding_matrix(load_files=False)
-    # sentences = get_tokenized_sentences()
-    # print sentences.get("train").get("vectors_concat")
+    # embeddings = get_embedding_matrix(load_files=True)
+    sentences = get_tokenized_sentences()
+    print sentences.get("train").get("vectors_concat")[2]
