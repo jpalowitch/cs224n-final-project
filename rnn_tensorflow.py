@@ -1,7 +1,7 @@
 from __future__ import print_function
 from project_utils import *
-from word_embeddings.py import *
-from rnn_cell.py import RNNCell
+from word_embeddings import *
+from rnn_cell import RNNCell
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
@@ -28,6 +28,8 @@ max_length = 100
 display_step = 1
 dropout_rate = 0.5
 
+
+
 # Get data and featurizing
 train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
 train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
@@ -37,6 +39,8 @@ n_train = train_vecs.shape[0]
 if batch_size is None:
     batch_size = train.shape[0]
 train_inputs = get_embedding
+
+
 
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
@@ -78,7 +82,7 @@ ces = tf.nn.sparse_softmax_cross_entropy_with_logits(
 )
 loss = tf.reduce_mean(ces)
 
-# Gradient Descent
+# Optimizer
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
 # Final scoring
