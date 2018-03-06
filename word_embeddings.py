@@ -12,6 +12,7 @@ TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
 N_DIMENSIONS = 50
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
+# Link for GloVe vectors: https://nlp.stanford.edu/projects/glove/
 
 def vectorize_sentences_concat(df, embeddings):
     """ Vectorizes sentences by concatenating the GloVe representations of each word.
@@ -104,6 +105,10 @@ def get_tokenized_sentences(path="glove_tokenized_sentences.pkl", load_files=Tru
         dev_tokenizer.fit_on_texts(dev_df)
         test_tokenizer.fit_on_texts(test_df)
 
+        train_sequences = train_tokenizer.texts_to_sequences(train_df)
+        dev_sequences = dev_tokenizer.texts_to_sequences(dev_df)
+        test_sequences = test_tokenizer.texts_to_sequences(test_df)
+
         embeddings = get_word_vectors()
         # train_vectors_concat, train_masks = vectorize_sentences_concat(train_df, embeddings)
         # dev_vectors_concat, dev_masks = vectorize_sentences_concat(dev_df, embeddings)
@@ -114,19 +119,22 @@ def get_tokenized_sentences(path="glove_tokenized_sentences.pkl", load_files=Tru
                 "vectors_sum": vectorize_sentences_sum(train_df, embeddings),
                 # "vectors_concat": train_vectors_concat,
                 # "masks": train_masks,
-                "word_index": train_tokenizer.word_index
+                "word_index": train_tokenizer.word_index,
+                "sequences": train_sequences
             },
             "dev": {
                 "vectors_sum": vectorize_sentences_sum(dev_df, embeddings),
                 # "vectors_concat": dev_vectors_concat,
                 # "masks": dev_masks,
-                "word_index": dev_tokenizer.word_index
+                "word_index": dev_tokenizer.word_index,
+                "sequences": dev_sequences
             },
             "test": {
                 "vectors_sum": vectorize_sentences_sum(test_df, embeddings),
                 # "vectors_concat": test_vectors_concat,
                 # "masks": test_masks,
-                "word_index": test_tokenizer.word_index
+                "word_index": test_tokenizer.word_index,
+                "sequences": test_sequences
             }
         }
 
@@ -169,27 +177,40 @@ def get_embedding_matrix(path="embeddings.pkl", data_set="train", load_files=Tru
         data_set: one of "train", "dev", or "test"
         load_files: whether to load saved copies of the files
     Returns:
-        embedding_matrix: embedding matrix
+        embedding_matrix: embedding matrix mappings words to GloVe vectors
+        sequences: ordered list of sentences where each element is an index in
+                   the embedding matrix
     """
-    print "Fetching embedding matrix"
     embedding_path = data_set + "_" + path
     if os.path.isfile(embedding_path) and load_files:
         with open(embedding_path, "rb") as fp:
-            embeddings = pickle.load(fp)
-        return embeddings
+            embeddings_and_sequences = pickle.load(fp)
+        return embeddings_and_sequences.get("embeddings"), embeddings_and_sequences.get("sequences")
     else:
         embeddings = get_word_vectors()
         sentence_vectors = get_tokenized_sentences().get(data_set)
-        embedding_matrix = np.zeros((len(sentence_vectors.get("word_index")) + 1, EMBEDDING_DIM))
+        embedding_matrix = np.zeros((len(sentence_vectors.get("word_index")) + 1, N_DIMENSIONS))
+        # map word indices to GloVe vectors
         for word, idx in sentence_vectors.get("word_index").items():
             embedding_vector = embeddings.get(word)
             if embedding_vector is not None:
                 embedding_matrix[idx] = embedding_vector
+        # get sequences and save
+        sequences = sentence_vectors.get("sequences")
         with open(embedding_path, "wb") as fp:
-            pickle.dump(embedding_matrix, fp)
-        return embedding_matrix
+            embeddings_and_sequences = {
+                "embeddings": embedding_matrix,
+                "sequences": sequences
+            }
+            pickle.dump(embeddings_and_sequences, fp)
+        return embedding_matrix, sequences
 
 if __name__ == "__main__":
-    # embeddings = get_embedding_matrix(load_files=True)
-    sentences = get_tokenized_sentences()
-    print sentences.get("train").get("vectors_concat")[2]
+    embeddings, sequences = get_embedding_matrix()
+    print 'embedding 1: {}'.format(embeddings[1])
+    print 'sequence 1: {}'.format(sequences[1])
+    sequence = sequences[1]
+    for word in sequence:
+        print 'word: {} embedding: {}'.format(word, embeddings[word])
+    # sentences = get_tokenized_sentences()
+    # print sentences.get("train").get("vectors_sum")[2]
