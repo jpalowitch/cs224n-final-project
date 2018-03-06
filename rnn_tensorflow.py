@@ -1,5 +1,7 @@
 from __future__ import print_function
 from project_utils import *
+from word_embeddings.py import *
+from rnn_cell.py import RNNCell
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
@@ -12,14 +14,17 @@ import pandas as pd
 # -nettype: either 'zero' or 'one', giving the number of hidden layers
 myargs = getopts(argv)
 
-APPROACH = "ngram"
+APPROACH = "rnn"
 CLASSIFIER = "logistic"
 FLAVOR = "tensorflow-ADAM"
 
 # Parameters
 learning_rate = 0.001
+beta_reg = 0.0001
 hidden_size = 256
 batch_size = 100
+embed_size = 50
+max_length = 100
 display_step = 1
 dropout_rate = 0.5
 
@@ -31,49 +36,50 @@ train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
 n_train = train_vecs.shape[0]
 if batch_size is None:
     batch_size = train.shape[0]
+train_inputs = get_embedding
 
 # tf Graph Input
-#x = tf.placeholder(tf.float32, [None, NUM_FEATURES])
-x = tf.sparse_placeholder(tf.float32)
-y = tf.placeholder(tf.float32, [None, 2])
+inputs = tf.placeholder(tf.int32, shape=(None, max_length))
+mask = tf.placeholder(tf.bool, shape=(None, max_length))
+labels = tf.placeholder(tf.int32, [None, 2])
 
-# Constructing middle layers
-if myargs['-nettype'] == 'zero':
-    beta_reg = 0.0001
-    training_epochs = 50
-    W = tf.get_variable("weights",
-                        shape=[NUM_FEATURES, 2],
-                        initializer=tf.contrib.layers.xavier_initializer())
-    b = tf.Variable(tf.zeros([2]))
-    theta = tf.sparse_tensor_dense_matmul(x, W) + b
-elif myargs['-nettype'] == 'one':
-    beta_reg = 0.0001
-    FLAVOR = "tensorflow-ADAM-1layer"
-    training_epochs = 10
-    W = tf.get_variable("weights",
-                        shape=[NUM_FEATURES, hidden_size],
-                        initializer=tf.contrib.layers.xavier_initializer())
-    b = tf.Variable(tf.zeros([hidden_size]))
-    z = tf.sparse_tensor_dense_matmul(x, W) + b
-    h = tf.nn.relu(z)
-    h_drop = tf.nn.dropout(h, 1 - dropout_rate)
-    W2 = tf.get_variable("weights2",
-                     shape=[hidden_size, 2],
-                     initializer=tf.contrib.layers.xavier_initializer())
-    b2 = tf.Variable(tf.zeros([2]))
-    theta = tf.matmul(h_drop, W2) + b2
+# Getting embeddings
+embeddings = tf.Variable(pretrained_embeddings)
+embeddings = tf.nn.embedding_lookup(params=embeddings, ids=inputs)
+x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
 
-# Get prediction (this will only be used for testing)
-pred = tf.nn.softmax(theta)
+# RNN variables and cell
+U = tf.get_variable(name="U", shape=(hidden_size, 2),
+                    initializer=tf.contrib.layers.xavier_initializer())
+b2 = tf.get_variable(name="b2", shape=(2),
+                     initializer=tf.constant_initializer(0))
+h_t = tf.zeros((tf.shape(x)[0], hidden_size))
+cell = RNNCell(Config.embed_size, Config.hidden_size)
 
-# Get cost directly (without needing prediction above)
-cost = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(logits=theta, labels=y) + \
-        tf.nn.l2_loss(W) * beta_reg
+# RNN training
+hlayers = []
+with tf.variable_scope("RNN"):
+    for time_step in range(max_length):
+        if time_step > 0:
+            tf.get_variable_scope().reuse_variables()
+        o_t, h_t = cell(x[:, time_step, :], h_t, scope="RNN")
+        o_drop_t = tf.nn.dropout(o_t, dropout_rate)
+        hlayers.append(o_drop_t)
+
+# Sum the hidden layers and predict on that    
+hlayers_sum = tf.add_n(hlayers) 
+logits = tf.add(tf.matmul(hlayers_sum, U), b2)
+pred = tf.nn.softmax(logits)
+
+# Get loss
+ces = tf.nn.sparse_softmax_cross_entropy_with_logits(
+            logits=tf.boolean_mask(logits, mask), 
+            labels=tf.boolean_mask(labels, mask)
 )
+loss = tf.reduce_mean(ces)
 
 # Gradient Descent
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
 
 # Final scoring
 def calc_auc_tf(X, Y): 
@@ -117,8 +123,9 @@ for target_class in range(6):
             minibatches = minibatch(train_vecs, train_target, batch_size)
             for batch_xs_mat, batch_ys in minibatches:
                 batch_xs = get_sparse_input(batch_xs_mat)
-                _, c = sess.run([optimizer, cost], feed_dict={x: batch_xs,
-                                                              y: batch_ys})
+                _, c = sess.run([optimizer, cost], feed_dict={inputs: batch_xs,
+                                                              mask: batch_mask,
+                                                              labels: batch_ys})
                 avg_cost += c / total_batch
             
             # Display logs
