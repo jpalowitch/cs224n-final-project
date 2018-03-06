@@ -169,7 +169,7 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
             pickle.dump(embeddings_index, fp)
         return embeddings_index
 
-def get_embedding_matrix(path="embeddings.pkl", data_set="train", load_files=True):
+def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=True):
     """ Creates embedding matrix for data set.
 
     Args:
@@ -206,7 +206,7 @@ def get_embedding_matrix(path="embeddings.pkl", data_set="train", load_files=Tru
         return embedding_matrix, sequences
 
 if __name__ == "__main__":
-    embeddings, sequences = get_embedding_matrix()
+    embeddings, sequences = get_embedding_matrix_and_sequences()
     print 'embedding 1: {}'.format(embeddings[1])
     print 'sequence 1: {}'.format(sequences[1])
     sequence = sequences[1]
