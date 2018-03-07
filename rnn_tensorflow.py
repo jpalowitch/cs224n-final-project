@@ -24,23 +24,19 @@ beta_reg = 0.0001
 hidden_size = 256
 batch_size = 100
 embed_size = 50
-max_length = 100
+max_length = 75
 display_step = 1
 dropout_rate = 0.5
 
 
-
 # Get data and featurizing
 train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
-    train, dev, test, sparse=True
-)
 n_train = train_vecs.shape[0]
-if batch_size is None:
-    batch_size = train.shape[0]
-train_inputs = get_embedding
 
-
+# Getting embeddings and sentence word sequences
+embeddings, train_seqs = get_embedding_matrix_and_sequences()
+_, dev_seqs = get_embedding_matrix_and_sequences(data_set="dev")
+_, test_seqs = get_embedding_matrix_and_sequences(data_set="test")
 
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
@@ -124,11 +120,11 @@ for target_class in range(6):
             total_batch = int(n_train/batch_size)
             
             # Loop over batches
-            minibatches = minibatch(train_vecs, train_target, batch_size)
-            for batch_xs_mat, batch_ys in minibatches:
-                batch_xs = get_sparse_input(batch_xs_mat)
-                _, c = sess.run([optimizer, cost], feed_dict={inputs: batch_xs,
-                                                              mask: batch_mask,
+            minibatches = minibatch(train_seqs, train_target, batch_size)
+            for batch_seqs, batch_ys in minibatches:
+                inputs, masks = preprocess_seqs(batch_seqs, max_length)
+                _, c = sess.run([optimizer, cost], feed_dict={inputs: inputs,
+                                                              mask: masks,
                                                               labels: batch_ys})
                 avg_cost += c / total_batch
             

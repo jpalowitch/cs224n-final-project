@@ -266,3 +266,33 @@ def tokenize(comment):
 	words = [w.lower() for w in words]
 	words = [w for w in words if w not in PUNCTUATION and not w.isdigit()]
 	return words
+	
+	
+def preprocess_and_pad_seqs(inputs, max_length=None):
+    """ Takes indexed sentences and prepares the data for RNN input.
+        
+    Args:
+        inputs: list of index lists as returned by get_word_embeddings().
+        nfilter: the maximum length of a sentence. Longer sentences will be 
+            randomly subsampled. Shorter sentences will be padded with zeros.
+    Returns:
+        new_inputs: a new list of index lists that have been padded or shortened.
+        masks: a list of max_length-length boolean masks for each sentence.
+    """"
+    new_inputs = []
+    masks = []
+    
+    for sentence in data:
+        T = len(sentence)
+        if T > max_length:
+            sentence2 = np.random.choice(
+                sentence, size=max_length, replace=False
+            )
+            mask = [True] * max_length
+        else:
+            sentence2 = sentence + [0] * (max_length - T)
+            mask = [True] * T + [False] * (max_length - T)
+        new_inputs.append(sentence2)
+        masks.append(mask)
+    
+    return new_inputs, masks
