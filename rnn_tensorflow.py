@@ -20,14 +20,14 @@ FLAVOR = "tensorflow-ADAM"
 
 # Parameters
 learning_rate = 0.001
-beta_reg = 0.0001
+beta_reg = 0.0000
 hidden_size = 256
-batch_size = 100
+batch_size = 50
 embed_size = 50
 max_length = 75
 display_step = 1
 dropout_rate = 0.5
-training_epochs = 15
+training_epochs = 5
 
 
 # Get data and featurizing
