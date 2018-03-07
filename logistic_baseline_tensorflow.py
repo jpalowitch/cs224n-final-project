@@ -87,6 +87,8 @@ global_init = tf.global_variables_initializer()
 
 
 auc_scores = []
+pred_mat = np.ndarray(shape = (31915,0))
+target_mat = np.ndarray(shape = (31915,0))
 for target_class in range(6):
     print("doing class " + CLASS_NAMES[target_class])
     
@@ -137,8 +139,14 @@ for target_class in range(6):
         AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
         print ("Test AUC:", AUC)
         auc_scores.append(AUC)
+
+        curr_pred = pred.eval({x: get_sparse_input(test_vecs)})
+        pred_mat = np.column_stack((pred_mat, curr_pred[:,1]))
+        target_mat = np.column_stack((target_mat, test_target[:,1]))
         
         sess.close()
-
+pred_mat = np.column_stack((pred_mat, target_mat))
+diagnostics = Diagnostics(build = 'tf', model_type = 'logistic-zero', preds_targets = pred_mat)
+diagnostics.do_all_diagnostics()
 save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
 
