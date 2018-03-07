@@ -27,17 +27,23 @@ embed_size = 50
 max_length = 75
 display_step = 1
 dropout_rate = 0.5
+training_epochs = 15
 
 
 # Get data and featurizing
 train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
-n_train = train_vecs.shape[0]
+n_train = train.shape[0]
 
+print("getting embeddings")
 # Getting embeddings and sentence word sequences
-embeddings, train_seqs = get_embedding_matrix_and_sequences()
+pretrained_embeddings, train_seqs = get_embedding_matrix_and_sequences()
 _, dev_seqs = get_embedding_matrix_and_sequences(data_set="dev")
 _, test_seqs = get_embedding_matrix_and_sequences(data_set="test")
+train_vecs, train_masks = preprocess_seqs(train_seqs, max_length)
+dev_vecs, dev_masks = preprocess_seqs(dev_seqs, max_length)
+test_vecs, test_masks = preprocess_seqs(test_seqs, max_length)
 
+print("building graph")
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
 mask = tf.placeholder(tf.bool, shape=(None, max_length))
@@ -45,6 +51,7 @@ labels = tf.placeholder(tf.int32, [None, 2])
 
 # Getting embeddings
 embeddings = tf.Variable(pretrained_embeddings)
+embeddings = tf.cast(embeddings, tf.float32)
 embeddings = tf.nn.embedding_lookup(params=embeddings, ids=inputs)
 x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
 
@@ -54,7 +61,7 @@ U = tf.get_variable(name="U", shape=(hidden_size, 2),
 b2 = tf.get_variable(name="b2", shape=(2),
                      initializer=tf.constant_initializer(0))
 h_t = tf.zeros((tf.shape(x)[0], hidden_size))
-cell = RNNCell(Config.embed_size, Config.hidden_size)
+cell = RNNCell(embed_size, hidden_size)
 
 # RNN training
 hlayers = []
@@ -72,14 +79,11 @@ logits = tf.add(tf.matmul(hlayers_sum, U), b2)
 pred = tf.nn.softmax(logits)
 
 # Get loss
-ces = tf.nn.sparse_softmax_cross_entropy_with_logits(
-            logits=tf.boolean_mask(logits, mask), 
-            labels=tf.boolean_mask(labels, mask)
-)
-loss = tf.reduce_mean(ces)
+ces = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+cost = tf.reduce_mean(ces)
 
 # Optimizer
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(loss)
+optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Final scoring
 def calc_auc_tf(X, Y): 
@@ -91,7 +95,7 @@ saver = tf.train.Saver()
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
-
+print("training on 6 classes")
 auc_scores = []
 for target_class in range(6):
     print("doing class " + CLASS_NAMES[target_class])
@@ -120,11 +124,10 @@ for target_class in range(6):
             total_batch = int(n_train/batch_size)
             
             # Loop over batches
-            minibatches = minibatch(train_seqs, train_target, batch_size)
-            for batch_seqs, batch_ys in minibatches:
-                inputs, masks = preprocess_seqs(batch_seqs, max_length)
-                _, c = sess.run([optimizer, cost], feed_dict={inputs: inputs,
-                                                              mask: masks,
+            minibatches = minibatch(train_vecs, train_target, batch_size, masks=train_masks)
+            for batch_xs, batch_ys, batch_masks in minibatches:
+                _, c = sess.run([optimizer, cost], feed_dict={inputs: batch_xs,
+                                                              mask: batch_masks,
                                                               labels: batch_ys})
                 avg_cost += c / total_batch
             

@@ -216,7 +216,7 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE,
         test_vecs = test_vecs.toarray()
     return train_vecs, dev_vecs, test_vecs
 
-def minibatch(inputs, labels, batch_size, shuffle=True):
+def minibatch(inputs, labels, batch_size, shuffle=True, masks=None):
     """ Performs minibatching on set of data. Based off of stack overflow post:
     https://stackoverflow.com/questions/38157972/how-to-implement-mini-batch-gradient-descent-in-python
 
@@ -237,7 +237,10 @@ def minibatch(inputs, labels, batch_size, shuffle=True):
             batch = indices[i:(i + batch_size)]
         else:
             batch = slice(i, i + batch_size)
-        yield inputs[batch], labels[batch]
+        if masks is not None:
+            yield inputs[batch], labels[batch], masks[batch]
+        else:
+            yield inputs[batch], labels[batch]
 
 def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
@@ -268,7 +271,7 @@ def tokenize(comment):
 	return words
 	
 	
-def preprocess_and_pad_seqs(inputs, max_length=None):
+def preprocess_seqs(inputs, max_length=None):
     """ Takes indexed sentences and prepares the data for RNN input.
         
     Args:
@@ -276,13 +279,13 @@ def preprocess_and_pad_seqs(inputs, max_length=None):
         nfilter: the maximum length of a sentence. Longer sentences will be 
             randomly subsampled. Shorter sentences will be padded with zeros.
     Returns:
-        new_inputs: a new list of index lists that have been padded or shortened.
-        masks: a list of max_length-length boolean masks for each sentence.
-    """"
+        inputs_mat: a row-mat of index lists that have been padded or shortened.
+        masks: a row-mat of max_length-length boolean masks for each sentence.
+    """
     new_inputs = []
     masks = []
     
-    for sentence in data:
+    for sentence in inputs:
         T = len(sentence)
         if T > max_length:
             sentence2 = np.random.choice(
@@ -294,5 +297,5 @@ def preprocess_and_pad_seqs(inputs, max_length=None):
             mask = [True] * T + [False] * (max_length - T)
         new_inputs.append(sentence2)
         masks.append(mask)
-    
-    return new_inputs, masks
+    inputs_mat = np.array(new_inputs).astype(np.int32)
+    return inputs_mat, np.array(masks)
