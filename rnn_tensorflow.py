@@ -87,7 +87,7 @@ optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Final scoring
 def calc_auc_tf(X, Y): 
-    return calc_auc(Y[:, 1], pred.eval({x: X})[:, 1])
+    return calc_auc(Y[:, 1], pred.eval({inputs: X})[:, 1])
 
 # Making weight saving functionality
 saver = tf.train.Saver()
@@ -133,7 +133,7 @@ for target_class in range(6):
             
             # Display logs
             if (epoch+1) % display_step == 0:
-                AUC = calc_auc_tf(get_sparse_input(dev_vecs), dev_target)
+                AUC = calc_auc_tf(dev_vecs, dev_target)
                 print("Epoch:", '%04d' % (epoch+1), 
                       "cost=", avg_cost,
                       "dev.auc=", AUC)
@@ -144,7 +144,7 @@ for target_class in range(6):
         
         print("Optimization Finished!")
         saver.restore(sess, save_fn)
-        AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
+        AUC = calc_auc_tf(test_vecs, test_target)
         print ("Test AUC:", AUC)
         auc_scores.append(AUC)
         
