@@ -170,7 +170,8 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
         return embeddings_index
 
 def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=True):
-    """ Creates embedding matrix for data set.
+    """ Creates embedding matrix for data set and returns embedding matrix and
+        an ordered list of word index sequences.
 
     Args:
         path: file path for saved embeddings
