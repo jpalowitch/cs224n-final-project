@@ -10,3 +10,4 @@ glove.6B/
 tf/
 *.pyc
 *.pkl
+data/

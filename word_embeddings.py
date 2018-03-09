@@ -6,7 +6,7 @@ from keras.preprocessing.text import Tokenizer, text_to_word_sequence
 from project_utils import get_TDT_split, tokenize
 import pickle
 GLOVE_DIRECTORY = "glove.6B"
-GLOVE_EMBEDDINGS = "glove.6B.embeddings.pkl"
+GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
 EMBEDDING_DIM = 50
 TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
@@ -75,7 +75,7 @@ def vectorize_sentences_sum(df, embeddings):
         sentences.append(vectorized_sentence)
     return sentences
 
-def get_tokenized_sentences(path="glove_tokenized_sentences.pkl", load_files=True):
+def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_files=True):
     """ Returns an object containing the sentence vectors and word embeddings lookup
         for each dataset.
 
@@ -158,7 +158,7 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
     else:
         embeddings_index = {}
         glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.50d.txt"))
-        # glove_vectors = open("glove.42B.300d.txt", "rb")
+        # glove_vectors = open("data/glove.42B.300d.txt", "rb")
         for line in glove_vectors:
             values = line.split()
             word = values[0]

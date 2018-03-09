@@ -5,9 +5,13 @@ from scipy import sparse
 import numpy as np
 from collections import defaultdict
 import tensorflow as tf
+import os
+from project_utils import get_TDT_split
+import pandas as pd
+import pickle
 
 
-def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
+def build_coccurrence_matrix(corpus, window_size=10, min_frequency=1):
     """ Builds a cooccurence matrix as a dictionary.
 
     Args:
@@ -16,7 +20,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
         min_frequency: minimum frequency of a word to keep
 
     Returns:
-        cooccurence_matrix: dictionary of form {(center_word, context_word):count}
+        cooccurence_matrix: dictionary of form {(center_word_index, context_word_index):count}
         tokenizer: word tokenizer to fetch information for word frequency and other values
     """
     print 'Building cooccurence matrix'
@@ -25,18 +29,17 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
     tokenizer.fit_on_texts(corpus)
     # print_tokenizer_information(tokenizer, corpus)
 
-    # create dict of {token_index: word}
+    # dict of {token_index: word}
     word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
 
     cooccurence_matrix_unfiltered = defaultdict(float)
     sequences = tokenizer.texts_to_sequences(corpus)
 
     for idx, token_ids in enumerate(sequences):
-        if idx % 100 == 0:
+        if idx % 1000 == 0:
             print 'On line: {}'.format(idx)
-        # uncomment to use word tokenizer instead of default one
         # print 'sequence: {}'.format(token_ids)
-        # v represents the center word; u is the context vector
+        # v represents the center word; u is the context word vector
         for v_idx, v in enumerate(token_ids):
             # separate contexts for left side to use for both, because symmetry
             left_context_words = token_ids[max(0, v_idx - window_size) : v_idx]
@@ -64,8 +67,10 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
             if tokenizer.word_counts[v_actual] >= min_frequency and tokenizer.word_counts[u_actual] >= min_frequency:
                  cooccurence_matrix[(v, u)] = count
 
+        print "Completed building cooccurrence matrix"
         return cooccurence_matrix, tokenizer
     else:
+        print "Completed building cooccurrence matrix"
         return cooccurence_matrix_unfiltered, tokenizer
 
 
@@ -85,7 +90,7 @@ def build_graph_and_train(cooccurence_matrix, vocab_size):
     batch_size = 1
     alpha = 0.75
     num_epochs = 2
-    learning_rate = 0.2
+    learning_rate = 0.05
 
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
@@ -137,6 +142,8 @@ def build_graph_and_train(cooccurence_matrix, vocab_size):
         tf.global_variables_initializer().run()
         for epoch in range(num_epochs):
             # TODO: add minibatching, remove array syntax
+            if epoch % 10 == 0:
+                print 'On epoch: {}'.format(epoch)
             for (input_batch,context_batch), count_batch in cooccurence_matrix.items():
                 # make sure everything is the right shape
                 # f_array = sess.run(f, feed_dict={X_ij: [200, 20]})
@@ -156,6 +163,50 @@ def build_graph_and_train(cooccurence_matrix, vocab_size):
         embeddings = sess.run(combined_embeddings)
         return embeddings
 
+def get_cooccurence_matrices(path="data/cooccurence.pkl", load_files=True):
+    """ Builds and retuns the cooccurence matrices for the train, dev, and test sets
+
+    Args:
+        path: path for the pkl file
+        load_files: whether to load previosly generated matrices or build new ones
+
+    Returns:
+        matrices: dict with three keys (train, dev, test). Each is a dict that
+                  holds the corresponding cooccurence matrix and tokenizer.
+    """
+    if os.path.isfile(path) and load_files:
+        with open(path, "rb") as fp:
+            matrices = pickle.load(fp)
+        return matrices
+    else:
+        train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
+
+        train_df = train[["comment_text"]].values.flatten()
+        dev_df = dev[["comment_text"]].values.flatten()
+        test_df = test[["comment_text"]].values.flatten()
+
+        train_matrix, train_tokenizer = build_coccurrence_matrix(train_df)
+        dev_matrix, dev_tokenizer = build_coccurrence_matrix(dev_df)
+        test_matrix, test_tokenizer = build_coccurrence_matrix(test_df)
+
+        matrices = {
+            "train": {
+                "matrix": train_matrix,
+                "tokenizer": train_tokenizer
+            },
+            "dev": {
+                "matrix": dev_matrix,
+                "tokenizer": dev_tokenizer
+            },
+            "test": {
+                "matrix": test_matrix,
+                "tokenizer": test_tokenizer
+            }
+        }
+
+        with open(path, "wb") as fp:
+            pickle.dump(matrices, fp)
+        return matrices
 
 ###### UTILS
 def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
@@ -188,7 +239,9 @@ def test_train():
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size)
     print 'final embeddings:'
-    print embeddings    
+    print embeddings
 
 if __name__ == '__main__':
-    test_train()
+    matrices = get_cooccurence_matrices()
+    print 'first!'
+    print matrices.get("train").get("matrix").itervalues().next()
