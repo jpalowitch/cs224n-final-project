@@ -271,13 +271,13 @@ def tokenize(comment):
 	return words
 	
 	
-def preprocess_seqs(inputs, max_length=None):
+def preprocess_seqs(inputs, max_length=None, method=None):
     """ Takes indexed sentences and prepares the data for RNN input.
         
     Args:
         inputs: list of index lists as returned by get_word_embeddings().
-        nfilter: the maximum length of a sentence. Longer sentences will be 
-            randomly subsampled. Shorter sentences will be padded with zeros.
+        method: string which is either random or truncate, if random, uses downsampling,
+        if truncate, cuts off tokens after max_length
     Returns:
         inputs_mat: a row-mat of index lists that have been padded or shortened.
         masks: a row-mat of max_length-length boolean masks for each sentence.
@@ -288,10 +288,14 @@ def preprocess_seqs(inputs, max_length=None):
     for sentence in inputs:
         T = len(sentence)
         if T > max_length:
-            sentence2 = np.random.choice(
-                sentence, size=max_length, replace=False
-            )
-            mask = [True] * max_length
+            if method == 'random':
+                sentence2 = np.random.choice(
+                    sentence, size=max_length, replace=False
+                )
+                mask = [True] * max_length
+            else:
+                sentence2 = sentence[:max_length]
+                mask = [True] * max_length
         else:
             sentence2 = sentence + [0] * (max_length - T)
             mask = [True] * T + [False] * (max_length - T)
@@ -299,3 +303,9 @@ def preprocess_seqs(inputs, max_length=None):
         masks.append(mask)
     inputs_mat = np.array(new_inputs).astype(np.int32)
     return inputs_mat, np.array(masks)
+
+
+
+
+
+
