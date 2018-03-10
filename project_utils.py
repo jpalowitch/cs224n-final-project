@@ -84,6 +84,13 @@ def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
     test = df[-ndata[2]:]
     return train, dev, test
 
+def get_development_data():
+    """Reads csv data and returns a very small portion of it for building models
+    """
+    data, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
+    return data[["comment_text"]].values.flatten()[:15]
+
+
 def get_sparse_input(scipy_sparse):
     """Produces needed input to tf.sparse_placeholder from a csr matrix
 
@@ -245,10 +252,10 @@ def minibatch(inputs, labels, batch_size, shuffle=True, masks=None):
 def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
         approach, classifier, flavor, class_name)
-        
+
 def getopts(argv):
     """ Gets and parses command-line arguments.
-    
+
     Args:
         inputs: the argument input object
     Returns:
@@ -269,11 +276,11 @@ def tokenize(comment):
 	words = [w.lower() for w in words]
 	words = [w for w in words if w not in PUNCTUATION and not w.isdigit()]
 	return words
-	
-	
+
+
 def preprocess_seqs(inputs, max_length=None, method=None):
     """ Takes indexed sentences and prepares the data for RNN input.
-        
+
     Args:
         inputs: list of index lists as returned by get_word_embeddings().
         method: string which is either random or truncate, if random, uses downsampling,
@@ -284,7 +291,7 @@ def preprocess_seqs(inputs, max_length=None, method=None):
     """
     new_inputs = []
     masks = []
-    
+
     for sentence in inputs:
         T = len(sentence)
         if T > max_length:
@@ -303,9 +310,3 @@ def preprocess_seqs(inputs, max_length=None, method=None):
         masks.append(mask)
     inputs_mat = np.array(new_inputs).astype(np.int32)
     return inputs_mat, np.array(masks)
-
-
-
-
-
-
