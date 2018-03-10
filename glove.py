@@ -282,6 +282,27 @@ def test_glove_model():
     print 'final embeddings'
     print embeddings
 
+def generate_embeddings(data_sets):
+    """ Generates GloVe word embeddings for the data set set
+
+    Args:
+        data_sets: list of data sets where each value is one of train, dev, or
+                   test
+    Returns:
+        all_embeddings: list of embeddings for data sets
+    """
+    matrices = get_cooccurrence_matrices()
+    all_embeddings = []
+    for ds in data_sets:
+        tokenizer = matrices.get(ds).get("tokenizer")
+        matrix = matrices.get(ds).get("matrix")
+        vocab_length = len(tokenizer.word_index.keys())
+        embeddings = get_embeddings(matrix, vocab_length, ds)
+        print 'First embedding for {} dataset:'.format(ds)
+        print embeddings[1]
+        all_embeddings.append(embeddings)
+
+    return all_embeddings
+
 if __name__ == '__main__':
-    # test_train()
-    
+    generate_embeddings(["train"])
