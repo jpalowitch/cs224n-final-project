@@ -3,6 +3,7 @@ import pickle
 import numpy as np
 import pandas as pd
 import tensorflow as tf
+import urllib
 from nltk import word_tokenize
 from string import punctuation
 PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
@@ -21,6 +22,7 @@ TFIDF_VECTORS_FILE = "tfidf_sentence_vectors.pkl"
 TRAIN_DATA_FILE = "train.csv"
 NUM_FEATURES = 10000
 SESS_SAVE_DIRECTORY = "sess_saves"
+ATTACK_AGGRESSION_FN = "attack_aggression_data.csv"
 
 def get_base2_labels(rows):
     """Converts a matrix of binary row vectors to labels.
@@ -310,3 +312,51 @@ def preprocess_seqs(inputs, max_length=None, method=None):
         masks.append(mask)
     inputs_mat = np.array(new_inputs).astype(np.int32)
     return inputs_mat, np.array(masks)
+
+def get_and_save_talk_data():
+    """ Function to download, save, and pre-process wikipedia talk share data:
+    https://figshare.com/projects/Wikipedia_Talk/16731
+    """
+
+    # Downloading
+    if not os.path.isfile('personal_attack_comments.tsv'):
+        print("downloading personal_attack_comments")            
+        urllib.urlretrieve('https://ndownloader.figshare.com/files/7554634', 
+                           'personal_attack_comments.tsv')
+        print("--done")
+    if not os.path.isfile('personal_attack_annotations.tsv'):
+        print("downloading personal_attack_annotations")
+        urllib.urlretrieve('https://ndownloader.figshare.com/files/7554637',
+                           'personal_attack_annotations.tsv')
+        print("--done")
+    if not os.path.isfile('aggression_comments.tsv'):
+        print("downloading aggression_comments")
+        urllib.urlretrieve('https://ndownloader.figshare.com/files/7038038',
+                           'aggression_comments.tsv')
+        print("--done")
+    if not os.path.isfile('aggression_annotations.tsv'):
+        print("downloading aggression_attack_comments")
+        urllib.urlretrieve('https://ndownloader.figshare.com/files/7394506',
+                           'aggression_annotations.tsv')
+        print("--done")
+
+    # Pre-processing
+    def get_csv(fn):
+        return pd.read_csv(fn, sep='\t', index_col=0)
+    att_com = get_csv('personal_attack_comments.tsv')
+    att_ann = get_csv('personal_attack_annotations.tsv')
+    agg_com = get_csv('aggression_comments.tsv')
+    agg_ann = get_csv('aggression_annotations.tsv')
+    att_labels = att_ann.groupby('rev_id')['attack'].mean() > 0.5
+    agg_labels = agg_ann.groupby('rev_id')['aggression'].mean() > 0.5
+    att_labels = att_labels.astype('int32')
+    agg_labels = agg_labels.astype('int32')
+    att_com['comment'] = att_com['comment'].apply(
+        lambda x: x.replace("NEWLINE_TOKEN", " "))
+    att_com['comment'] = att_com['comment'].apply(
+        lambda x: x.replace("TAB_TOKEN", " "))
+    comments_d = {'comment_text': att_com['comment'].values,
+                  'attack': att_labels.values,
+                  'aggression': agg_labels.values}
+    comments_df = pd.DataFrame(comments_d)
+    comments_df.to_csv(ATTACK_AGGRESSION_FN)
