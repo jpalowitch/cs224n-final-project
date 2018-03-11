@@ -18,7 +18,8 @@ CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
 SPLIT_SEED = 123454321
 RUN_SEED = 543212345
 SPLIT_PROP = [3.0, 1.0, 1.0]
-TFIDF_VECTORS_FILE = "tfidf_sentence_vectors.pkl"
+TFIDF_VECTORS_FILE_TOXIC = "tfidf_sentence_vectors.pkl"
+TFIDF_VECTORS_FILE_AGG = "tfidf_sentence_vectors_aggresion.pkl"
 TRAIN_DATA_FILE = "train.csv"
 NUM_FEATURES = 10000
 SESS_SAVE_DIRECTORY = "sess_saves"
@@ -133,7 +134,7 @@ def calc_auc(labels, probs, mean=True):
 
 
 def save_auc_scores(scores, approach, classifier, flavor,
-                    fn="auc_scores.csv", overwrite=True):
+                    fn="auc_scores.csv", overwrite=True, cnames=CLASS_NAMES):
     """Records auc scores of approach-flavor run.
 
 	   ***Before setting your approach/classifier/flavor strings, make sure to
@@ -153,7 +154,7 @@ def save_auc_scores(scores, approach, classifier, flavor,
     new_data_d = {"Approach": approach,
                   "Classifier": classifier,
                   "Flavor": flavor}
-    new_data_d.update(zip(CLASS_NAMES, scores))
+    new_data_d.update(zip(cnames, scores))
     if os.path.isfile(fn):
         old_data = pd.read_csv(fn, index_col=0)
         new_data = pd.DataFrame(data=new_data_d, index=[old_data.shape[0]])
@@ -169,7 +170,7 @@ def save_auc_scores(scores, approach, classifier, flavor,
     old_data.to_csv(fn)
     return None
 
-def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE,
+def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
                             n_features=NUM_FEATURES, sparse=False):
     """ Vectorizes the corpus using tf-idf. Saves in sparse format. Also saves
         the vectorizer object for potential later use on new examples.
