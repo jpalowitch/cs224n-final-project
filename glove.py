@@ -356,7 +356,7 @@ def test_minibatch():
 if __name__ == "__main__":
     myargs = getopts(argv)
     if "-bs" in myargs:
-        batch_size = myargs["-bs"]
+        batch_size = int(myargs["-bs"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
