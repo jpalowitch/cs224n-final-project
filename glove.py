@@ -6,10 +6,17 @@ import numpy as np
 from collections import defaultdict
 import tensorflow as tf
 import os
-from project_utils import get_TDT_split, get_development_data
+from project_utils import get_TDT_split, get_development_data, getopts
 import pandas as pd
 import pickle
+from sys import argv
 
+# Global vars set by command line arguments
+batch_size = 5
+data_sets = ["train"]
+x = 1
+num_epochs = 2
+embedding_size = 50
 
 def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
     """ Builds a cooccurrence matrix as a dictionary.
@@ -86,11 +93,8 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
         embeddings: (vocab_size x embedding_size) shape matrix of word vectors
     """
     # model params
-    embedding_size = 50
     alpha = 0.75
-    num_epochs = 2
     learning_rate = 0.05
-    batch_size = 5
 
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
@@ -347,5 +351,25 @@ def test_minibatch():
         print 'j:       {}'.format(j)
         print 'count:   {}'.format(X_ij)
 
-if __name__ == '__main__':
-    # generate_embeddings(["train"])
+
+if __name__ == "__main__":
+    myargs = getopts(argv)
+    if "-bs" in myargs:
+        batch_size = myargs["-bs"]
+
+    if "-run" in myargs:
+        run_arg = myargs["-run"]
+        if run_arg == "all":
+            generate_embeddings(["train", "dev", "test"])
+        elif run_arg == "train":
+            generate_embeddings(["train"])
+        elif run_arg == "dev":
+            generate_embeddings(["dev"])
+        elif run_arg == "test":
+            generate_embeddings(["test"])
+
+    if "-ep" in myargs:
+        num_epochs = myargs["-ep"]
+
+    if "-em" in myargs:
+        embedding_size = myargs["-em"]
