@@ -1,4 +1,3 @@
-from sklearn.feature_extraction.text import CountVectorizer
 from project_utils import tokenize as word_tokenizer
 import numpy as np
 from collections import defaultdict
