@@ -1,4 +1,3 @@
-from keras.preprocessing.text import Tokenizer
 from sklearn.feature_extraction.text import CountVectorizer
 from project_utils import tokenize as word_tokenizer
 import numpy as np
@@ -9,6 +8,9 @@ from project_utils import get_TDT_split, get_development_data, getopts
 import pandas as pd
 import pickle
 from sys import argv
+
+# use tensorflow hosted version of Tokenizer
+Tokenizer = tf.keras.preprocessing.text.Tokenizer
 
 # Global vars set by command line arguments
 batch_size = 5
