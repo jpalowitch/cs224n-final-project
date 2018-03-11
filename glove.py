@@ -81,13 +81,14 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
         return cooccurrence_matrix_unfiltered, tokenizer
 
 
-def build_graph_and_train(cooccurrence_matrix, vocab_size):
+def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
     """ Builds and trains a tensorflow model for creating GloVe vectors based off
         of a cooccurrence_matrix.
 
     Args:
         cooccurrence_matrix: dictionary of form {(input_word_index, context_word_index) : count}
         vocab_size: size of vocabulary
+        scope: variable scope for tensors
 
     Returns:
         embeddings: (vocab_size x embedding_size) shape matrix of word vectors
@@ -102,12 +103,13 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
     # variables
     # weights for input (i) and context (j) vectors
     # tokens are indexed at 1, so need shape needs to be vocab_size + 1
-    W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
-    W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+    with tf.variable_scope(scope):
+        W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+        W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
 
-    # each word has a scalar weight for when it is a center or context word
-    B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
-    B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
+        # each word has a scalar weight for when it is a center or context word
+        B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
+        B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
 
     # add placeholders for indices for the input and output words and cooccurrence for (v, u)
     i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
@@ -169,6 +171,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
         embeddings = sess.run(combined_embeddings)
+        sess.close()
     return embeddings
 
 def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=True):
@@ -218,12 +221,12 @@ def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=True):
 
 def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.pkl", load_files=True):
     full_path = "data/" + data_set + "_" + path
-    if os.path.isfile(path) and load_files:
+    if os.path.isfile(full_path) and load_files:
         with open(full_path, "rb") as fp:
             embeddings = pickle.load(fp)
         return embeddings
     else:
-        embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size)
+        embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
         return embeddings
@@ -274,13 +277,10 @@ def generate_embeddings(data_sets, path="data/glove_vectors.pkl"):
         tokenizer = matrices.get(ds).get("tokenizer")
         matrix = matrices.get(ds).get("matrix")
         vocab_length = len(tokenizer.word_index.keys())
+        # get_embeddings saves the embedding in /data
         embeddings = get_embeddings(matrix, vocab_length, ds)
-        # print 'First embedding for {} dataset:'.format(ds)
         all_embeddings[ds] = embeddings
 
-    # save vectors
-    with open(full_path, "wb") as fp:
-        pickle.dump(all_embeddings, fp)
     return all_embeddings
 
 ###### UTILS
@@ -326,17 +326,17 @@ def test_train():
     corpus = ['San Francisco is in California.', 'California is a great place.', 'California is a subpar place.']
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus, min_frequency=2)
     vocab_size = len(tokenizer.word_index.keys())
-    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size)
+    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test")
     print 'final embeddings:'
     print embeddings
 
-def test_glove_model():
+def test_glove_model(scope):
     """Tests the model using the first fifteen elements in the training data sets
     """
     corpus = get_development_data()
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
     vocab_size = len(tokenizer.word_index.keys())
-    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size)
+    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, scope)
     print 'final embeddings'
     print embeddings
 
@@ -370,10 +370,10 @@ if __name__ == "__main__":
             generate_embeddings(["test"])
 
     if "-ep" in myargs:
-        num_epochs = myargs["-ep"]
+        num_epochs = int(myargs["-ep"])
 
     if "-em" in myargs:
-        embedding_size = myargs["-em"]
+        embedding_size = int(myargs["-em"])
 
     if "-test" in myargs:
         if myargs["-test"] == "glove":
