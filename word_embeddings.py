@@ -2,7 +2,6 @@ import pandas as pd
 import csv
 import os
 import numpy as np
-from keras.preprocessing.text import Tokenizer, text_to_word_sequence
 from project_utils import get_TDT_split, tokenize
 import pickle
 GLOVE_DIRECTORY = "glove.6B"
@@ -13,6 +12,10 @@ MAX_SENTENCE_LENGTH = 50
 N_DIMENSIONS = 50
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
 # Link for GloVe vectors: https://nlp.stanford.edu/projects/glove/
+
+# use tensorflow hosted versions
+Tokenizer = tf.keras.preprocessing.text.Tokenizer
+text_to_word_sequence = tf.keras.preprocessing.text.text_to_word_sequence
 
 def vectorize_sentences_concat(df, embeddings):
     """ Vectorizes sentences by concatenating the GloVe representations of each word.

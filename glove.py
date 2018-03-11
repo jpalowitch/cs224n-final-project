@@ -1,7 +1,4 @@
-from keras.preprocessing.text import Tokenizer
-from sklearn.feature_extraction.text import CountVectorizer
 from project_utils import tokenize as word_tokenizer
-from scipy import sparse
 import numpy as np
 from collections import defaultdict
 import tensorflow as tf
@@ -10,6 +7,9 @@ from project_utils import get_TDT_split, get_development_data, getopts
 import pandas as pd
 import pickle
 from sys import argv
+
+# use tensorflow hosted version of Tokenizer
+Tokenizer = tf.keras.preprocessing.text.Tokenizer
 
 # Global vars set by command line arguments
 batch_size = 5
@@ -30,7 +30,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
         cooccurrence_matrix: dictionary of form {(center_word_index, context_word_index):count}
         tokenizer: word tokenizer to fetch information for word frequency and other values
     """
-    print 'Building cooccurrence matrix'
+    print "Building cooccurrence matrix"
     # train tokenizer on corpus
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(corpus)
@@ -44,7 +44,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
 
     for idx, token_ids in enumerate(sequences):
         if idx % 1000 == 0:
-            print 'On line: {}'.format(idx)
+            print "On line: {}".format(idx)
         # print 'sequence: {}'.format(token_ids)
         # v represents the center word; u is the context word vector
         for v_idx, v in enumerate(token_ids):
@@ -147,12 +147,12 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
         tf.global_variables_initializer().run()
         for epoch in range(num_epochs):
             if epoch % 10 == 0:
-                print 'On epoch: {}'.format(epoch)
+                print "On epoch: {}".format(epoch)
             idx = 0
             minibatches = get_cooccurrence_batches(cooccurrence_matrix, batch_size)
             for input_batch, context_batch, count_batch in minibatches:
                 if idx % 10000 == 0:
-                    print 'On iteration: {}'.format(idx)
+                    print "On iteration: {}".format(idx)
                 # make sure everything is the right shape
                 # f_array = sess.run(f, feed_dict={X_ij: [200, 20]})
                 # x_array = sess.run(X_ij, feed_dict={X_ij: [200, 20]})
@@ -168,9 +168,8 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
                 }
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
-
         embeddings = sess.run(combined_embeddings)
-        return embeddings
+    return embeddings
 
 def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=True):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
@@ -357,7 +356,7 @@ def test_minibatch():
 if __name__ == "__main__":
     myargs = getopts(argv)
     if "-bs" in myargs:
-        batch_size = myargs["-bs"]
+        batch_size = int(myargs["-bs"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
@@ -375,3 +374,13 @@ if __name__ == "__main__":
 
     if "-em" in myargs:
         embedding_size = myargs["-em"]
+
+    if "-test" in myargs:
+        if myargs["-test"] == "glove":
+            test_glove_model()
+        elif myargs["-test"] == "minibatch":
+            test_minibatch()
+        elif myargs["-test"] == "train":
+            test_train()
+        elif myargs["-test"] == "cooccur":
+            test_build_coccurrence_matrix()

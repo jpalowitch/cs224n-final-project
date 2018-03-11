@@ -1,5 +1,3 @@
-train.csv
-test.csv
 tensorflow3*
 __pycache__*
 sess_saves/
