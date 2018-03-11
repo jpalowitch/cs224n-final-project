@@ -9,3 +9,4 @@ tf/
 *.pyc
 *.pkl
 data/
+train.csv
