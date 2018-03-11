@@ -260,26 +260,28 @@ def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
         j = [pair[1] for pair in pairs]
         yield i, j, X_ij
 
-def generate_embeddings(data_sets):
+def generate_embeddings(data_sets, path="data/glove_vectors.pkl"):
     """ Generates GloVe word embeddings for the data set set
 
     Args:
         data_sets: list of data sets where each value is one of train, dev, or
                    test
     Returns:
-        all_embeddings: list of embeddings for data sets
+        all_embeddings: dict of embeddings for data sets
     """
     matrices = get_cooccurrence_matrices()
-    all_embeddings = []
+    all_embeddings = {}
     for ds in data_sets:
         tokenizer = matrices.get(ds).get("tokenizer")
         matrix = matrices.get(ds).get("matrix")
         vocab_length = len(tokenizer.word_index.keys())
         embeddings = get_embeddings(matrix, vocab_length, ds)
-        print 'First embedding for {} dataset:'.format(ds)
-        print embeddings[1]
-        all_embeddings.append(embeddings)
+        # print 'First embedding for {} dataset:'.format(ds)
+        all_embeddings[ds] = embeddings
 
+    # save vectors
+    with open(full_path, "wb") as fp:
+        pickle.dump(all_embeddings, fp)
     return all_embeddings
 
 ###### UTILS
