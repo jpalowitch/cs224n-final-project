@@ -87,10 +87,10 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
     """
     # model params
     embedding_size = 50
-    batch_size = 1
     alpha = 0.75
     num_epochs = 2
     learning_rate = 0.05
+    batch_size = 5
 
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
@@ -126,8 +126,8 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
     inner_value = tf.matmul(w_i, w_j_transpose) + b_i + b_j - tf.log(X_ij)
 
     # loss: f(X_ij) * [(w_i * w_j + b_i + b_j + log(X_ij))^2]
-    f_expaneded = tf.expand_dims(f, 1)
-    loss = tf.matmul(f_expaneded, tf.pow(inner_value, 2))
+    f_expanded = tf.expand_dims(f, 1)
+    loss = f * tf.pow(inner_value, 2)
 
     # reduce for entire batch
     total_loss = tf.reduce_sum(loss)
@@ -142,11 +142,11 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
         for epoch in range(num_epochs):
-            # TODO: add minibatching, remove array syntax
             if epoch % 10 == 0:
                 print 'On epoch: {}'.format(epoch)
             idx = 0
-            for (input_batch, context_batch), count_batch in cooccurrence_matrix.items():
+            minibatches = get_cooccurrence_batches(cooccurrence_matrix, batch_size)
+            for input_batch, context_batch, count_batch in minibatches:
                 if idx % 10000 == 0:
                     print 'On iteration: {}'.format(idx)
                 # make sure everything is the right shape
@@ -158,9 +158,9 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size):
 
                 # finally train
                 feed_dict = {
-                    i: [input_batch],
-                    j: [context_batch],
-                    X_ij: [count_batch]
+                    i: input_batch,
+                    j: context_batch,
+                    X_ij: count_batch
                 }
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
@@ -225,6 +225,59 @@ def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.p
             pickle.dump(embeddings, fp)
         return embeddings
 
+def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
+    """ Generates a minibatch of data from a cooccurence matrix.
+
+    Args:
+        cooccurrence_matrix: dict of form {(center_index, context_index): count}
+        batch_size: size of minibatch
+        shuffle: whether to randomly shuffle the batch
+
+    Returns:
+        i: minibatch of input indices
+        j: minibatch of context indices
+        count: minibatch of X_ij counts
+    """
+    np_keys = np.array(cooccurrence_matrix.keys())
+    np_values = np.array(cooccurrence_matrix.values())
+    dimension = np_keys.shape[0]
+    if shuffle:
+        indices = np.arange(dimension)
+        np.random.shuffle(indices)
+    for i in range(0, dimension - batch_size + 1, batch_size):
+        if shuffle:
+            batch = indices[i:(i + batch_size)]
+        else:
+            batch = slice(i, i + batch_size)
+
+        pairs = np_keys[batch]
+        X_ij = np_values[batch]
+        i = [pair[0] for pair in pairs]
+        j = [pair[1] for pair in pairs]
+        yield i, j, X_ij
+
+def generate_embeddings(data_sets):
+    """ Generates GloVe word embeddings for the data set set
+
+    Args:
+        data_sets: list of data sets where each value is one of train, dev, or
+                   test
+    Returns:
+        all_embeddings: list of embeddings for data sets
+    """
+    matrices = get_cooccurrence_matrices()
+    all_embeddings = []
+    for ds in data_sets:
+        tokenizer = matrices.get(ds).get("tokenizer")
+        matrix = matrices.get(ds).get("matrix")
+        vocab_length = len(tokenizer.word_index.keys())
+        embeddings = get_embeddings(matrix, vocab_length, ds)
+        print 'First embedding for {} dataset:'.format(ds)
+        print embeddings[1]
+        all_embeddings.append(embeddings)
+
+    return all_embeddings
+
 ###### UTILS
 def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
     """ Reconstructs sentence from list of tokens.
@@ -282,27 +335,17 @@ def test_glove_model():
     print 'final embeddings'
     print embeddings
 
-def generate_embeddings(data_sets):
-    """ Generates GloVe word embeddings for the data set set
-
-    Args:
-        data_sets: list of data sets where each value is one of train, dev, or
-                   test
-    Returns:
-        all_embeddings: list of embeddings for data sets
+def test_minibatch():
+    """ Tests minibatch using small data set.
     """
-    matrices = get_cooccurrence_matrices()
-    all_embeddings = []
-    for ds in data_sets:
-        tokenizer = matrices.get(ds).get("tokenizer")
-        matrix = matrices.get(ds).get("matrix")
-        vocab_length = len(tokenizer.word_index.keys())
-        embeddings = get_embeddings(matrix, vocab_length, ds)
-        print 'First embedding for {} dataset:'.format(ds)
-        print embeddings[1]
-        all_embeddings.append(embeddings)
-
-    return all_embeddings
+    corpus = get_development_data()
+    cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
+    minibatches = get_cooccurrence_batches(cooccurrence_matrix, 5)
+    for batch in minibatches:
+        i, j, X_ij = batch
+        print 'i:       {}'.format(i)
+        print 'j:       {}'.format(j)
+        print 'count:   {}'.format(X_ij)
 
 if __name__ == '__main__':
-    generate_embeddings(["train"])
+    # generate_embeddings(["train"])
