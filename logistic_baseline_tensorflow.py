@@ -168,6 +168,6 @@ for target_class in range(len(cnames)):
 #                          preds_targets = pred_mat,
 #                          dataset = myargs['-dataset'])
 #diagnostics.do_all_diagnostics()
-save_auc_scores(auc_scores, APPROACH, CLASSIFIER, fn=aucfn, cnames=cnames,
-                flavor=FLAVOR + "-" + "nettype=" + myargs['-nettype'])
+#save_auc_scores(auc_scores, APPROACH, CLASSIFIER, fn=aucfn, cnames=cnames,
+#                flavor=FLAVOR)
 

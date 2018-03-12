@@ -135,9 +135,9 @@ nepochs = 3
 
 
 auc_scores = []
-for target_class in range(6):
+for target_class in range(len(cnames)):
 
-    print("doing class " + CLASS_NAMES[target_class])
+    print("doing class " + cnames[target_class])
     train_target = get_onehots_from_labels(y_tra[:, target_class])
     dev_target = get_onehots_from_labels(y_val[:, target_class])
     RocAuc = RocAucEvaluation(validation_data=(X_val, dev_target), interval=1)
