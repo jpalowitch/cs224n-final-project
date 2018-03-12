@@ -1,3 +1,4 @@
 ,Approach,Classifier,Flavor,aggression,attack
 1,ngram,logistic,sklearn-SAG,0.9466826517,0.953639877
 2,ngram,logistic,tensorflow-ADAM-nettype=zero,0.942395811378,0.949501425006
+2,ngram,logistic,tensorflow-ADAM-1layer-nettype=one,0.940144616021,0.944970556846

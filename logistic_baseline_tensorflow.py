@@ -9,9 +9,9 @@ from sys import argv
 import os
 import pandas as pd
 
-print(argv)
 # Getting command args
 # -nettype: either 'zero' or 'one', giving the number of hidden layers
+# -dataset: either 'toxic' or 'attack', telling which data set to analyze
 myargs = getopts(argv)
 
 APPROACH = "ngram"
