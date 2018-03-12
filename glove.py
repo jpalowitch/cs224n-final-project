@@ -12,11 +12,11 @@ from sys import argv
 Tokenizer = tf.keras.preprocessing.text.Tokenizer
 
 # Global vars set by command line arguments
-batch_size = 5
+batch_size = 512
 data_sets = ["train"]
 x = 1
-num_epochs = 2
-embedding_size = 50
+num_epochs = 20
+embedding_size = 100
 
 def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
     """ Builds a cooccurrence matrix as a dictionary.
@@ -174,7 +174,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         sess.close()
     return embeddings
 
-def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=True):
+def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=False):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
 
     Args:
@@ -219,18 +219,6 @@ def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=True):
             pickle.dump(matrices, fp)
         return matrices
 
-def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.pkl", load_files=True):
-    full_path = "data/" + data_set + "_" + path
-    if os.path.isfile(full_path) and load_files:
-        with open(full_path, "rb") as fp:
-            embeddings = pickle.load(fp)
-        return embeddings
-    else:
-        embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
-        with open(full_path, "wb") as fp:
-            pickle.dump(embeddings, fp)
-        return embeddings
-
 def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
     """ Generates a minibatch of data from a cooccurence matrix.
 
@@ -262,8 +250,8 @@ def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
         j = [pair[1] for pair in pairs]
         yield i, j, X_ij
 
-def generate_embeddings(data_sets, path="data/glove_vectors.pkl"):
-    """ Generates GloVe word embeddings for the data set set
+def generate_embeddings(data_sets):
+    """ Generates GloVe word embeddings for the data set. Wrapper over get_embeddings.
 
     Args:
         data_sets: list of data sets where each value is one of train, dev, or
@@ -283,6 +271,30 @@ def generate_embeddings(data_sets, path="data/glove_vectors.pkl"):
 
     return all_embeddings
 
+def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.pkl", load_files=False):
+    """ Fetches the local GloVe embeddings for a single data set
+
+    Args:
+        cooccurrence_matrix: dict of form {(center_index, context_index): count}
+        vocab_size: size of vocabulary
+        data_set: one of train, dev, or test
+        path: path for embeddings file
+        load_files: whether to load the files
+
+    Returns:
+        embeddings: embeddings for one dataset
+    """
+    full_path = "data/" + data_set + "_" + path
+    if os.path.isfile(full_path) and load_files:
+        with open(full_path, "rb") as fp:
+            embeddings = pickle.load(fp)
+        return embeddings
+    else:
+        embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
+        with open(full_path, "wb") as fp:
+            pickle.dump(embeddings, fp)
+        return embeddings
+
 ###### UTILS
 def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
     """ Reconstructs sentence from list of tokens.
@@ -298,9 +310,12 @@ def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
     print 'sentence:  {}'.format(sentence)
     return sentence
 
-def print_tokenizer_information(tokenizer, corpus):
+def print_tokenizer_information(tokenizer=None, corpus=None):
     """ Prints useful information about the tokenizer.
     """
+    if tokenizer is None:
+        corpus = get_development_data()
+        _, tokenizer  = build_coccurrence_matrix(corpus)
     print 'word_index'
     print tokenizer.word_index
     print 'word_counts (frequency)'
@@ -327,7 +342,7 @@ def test_train():
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus, min_frequency=2)
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test")
-    print 'final embeddings:'
+    print "Final embeddings:"
     print embeddings
 
 def test_glove_model(scope):
@@ -337,7 +352,7 @@ def test_glove_model(scope):
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, scope)
-    print 'final embeddings'
+    print "Final embeddings:"
     print embeddings
 
 def test_minibatch():
@@ -351,7 +366,6 @@ def test_minibatch():
         print 'i:       {}'.format(i)
         print 'j:       {}'.format(j)
         print 'count:   {}'.format(X_ij)
-
 
 if __name__ == "__main__":
     myargs = getopts(argv)

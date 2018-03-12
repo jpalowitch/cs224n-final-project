@@ -4,13 +4,19 @@ import os
 import numpy as np
 from project_utils import get_TDT_split, tokenize
 import pickle
+import tensorflow as tf
+from project_utils import getopts
+from sys import argv
+from glove import generate_embeddings
+
 GLOVE_DIRECTORY = "glove.6B"
 GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
 EMBEDDING_DIM = 50
 TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
-N_DIMENSIONS = 50
+N_DIMENSIONS = 100
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
+use_local_glove_vectors = None
 # Link for GloVe vectors: https://nlp.stanford.edu/projects/glove/
 
 # use tensorflow hosted versions
@@ -160,7 +166,7 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
         return embeddings_index
     else:
         embeddings_index = {}
-        glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.50d.txt"))
+        glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.100d.txt"))
         # glove_vectors = open("data/glove.42B.300d.txt", "rb")
         for line in glove_vectors:
             values = line.split()
@@ -172,7 +178,7 @@ def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
             pickle.dump(embeddings_index, fp)
         return embeddings_index
 
-def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=True):
+def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=True):
     """ Creates embedding matrix for data set and returns embedding matrix and
         an ordered list of word index sequences.
 
@@ -180,6 +186,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
         path: file path for saved embeddings
         data_set: one of "train", "dev", or "test"
         load_files: whether to load saved copies of the files
+        use_local: whether to use locally trained vectors
     Returns:
         embedding_matrix: embedding matrix mappings words to GloVe vectors
         sequences: ordered list of sentences where each element is an index in
@@ -191,14 +198,25 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             embeddings_and_sequences = pickle.load(fp)
         return embeddings_and_sequences.get("embeddings"), embeddings_and_sequences.get("sequences")
     else:
-        embeddings = get_word_vectors()
         sentence_vectors = get_tokenized_sentences().get(data_set)
-        embedding_matrix = np.zeros((len(sentence_vectors.get("word_index")) + 1, N_DIMENSIONS))
-        # map word indices to GloVe vectors
-        for word, idx in sentence_vectors.get("word_index").items():
-            embedding_vector = embeddings.get(word)
-            if embedding_vector is not None:
-                embedding_matrix[idx] = embedding_vector
+        # override with command line arg if present
+        if use_local_glove_vectors is not None:
+            use_local = use_local_glove_vectors
+        # check whether to look for vectors trained on corpus
+        if use_local:
+            print "Using locally trained vectors"
+            embedding_matrix = read_local_vectors(data_set)
+
+        else:
+            embeddings = get_word_vectors()
+            embedding_matrix = np.zeros((len(sentence_vectors.get("word_index")) + 1, N_DIMENSIONS))
+            # map word indices to GloVe vectors
+            for word, idx in sentence_vectors.get("word_index").items():
+                embedding_vector = embeddings.get(word)
+                if embedding_vector is not None:
+                    embedding_vector = embeddings.get(word)
+                    embedding_matrix[idx] = embedding_vector
+
         # get sequences and save
         sequences = sentence_vectors.get("sequences")
         with open(embedding_path, "wb") as fp:
@@ -209,12 +227,52 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-if __name__ == "__main__":
+def read_local_vectors(data_set):
+    """ Returns the GloVe vectors trained for the dataset
+
+    Args:
+        data_set: one of train, dev, test
+
+    Returns:
+        embeddings: GloVe embeddings
+    """
+    path = "data/" + data_set + "_" + "embeddings.pkl"
+    if os.path.isfile(path):
+        with open(path, "rb") as fp:
+            embeddings = pickle.load(fp)
+        return embeddings
+    else:
+        print "Could not find dataset"
+        embeddings = generate_embeddings([data_set])
+        return embeddings
+
+def test_glove_vectors():
+    train, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
+    train_df = train[["comment_text"]].values.flatten()
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(train_df)
+    embeddings = read_local_vectors("train")
+    assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
+    print "GloVe vector dimensions are correct"
+
+def test(use_local=False):
+    if use_local_glove_vectors is not None:
+        use_local = use_local_glove_vectors
+    print 'arg: {}'.format(use_local)
+
+def test_get_embedding_matrix_and_sequences():
     embeddings, sequences = get_embedding_matrix_and_sequences()
     print 'embedding 1: {}'.format(embeddings[1])
     print 'sequence 1: {}'.format(sequences[1])
     sequence = sequences[1]
     for word in sequence:
         print 'word: {} embedding: {}'.format(word, embeddings[word])
-    # sentences = get_tokenized_sentences()
-    # print sentences.get("train").get("vectors_sum")[2]
+
+if __name__ == "__main__":
+    myargs = getopts(argv)
+    if "-em" in myargs:
+        use_local_glove_vectors = bool(myargs["-em"])
+
+    if "-test" in myargs:
+        if myargs["-test"] == "matrix":
+            test_get_embedding_matrix_and_sequences()
