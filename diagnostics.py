@@ -29,7 +29,7 @@ class Diagnostics:
 		self.build = build #sklearn or tensorflow
 		self.model_type = model_type
 		self.preds_targets = preds_targets 
-        self.dataset = dataset
+        self.data = dataset
 		
 		(ts, micro) = datetime.utcnow().strftime('%Y%m%d%H%M%S.%f').split('.')
 		ts = "%s%03d" % (ts, int(micro) / 1000)
