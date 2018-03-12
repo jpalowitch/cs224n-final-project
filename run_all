@@ -1,5 +1,7 @@
-python gru_baseline_keras_perclass.py -attention no
-python gru_baseline_keras_perclass.py -attention yes
+python gru_baseline_keras_perclass.py -attention no -dataset toxic
+python gru_baseline_keras_perclass.py -attention yes -dataset toxic
+python gru_baseline_keras_perclass.py -attention no -dataset attack
+python gru_baseline_keras_perclass.py -attention yes -dataset attack
 python logistic_baseline_tensorflow.py -nettype zero -dataset toxic
 python logistic_baseline_tensorflow.py -nettype one -dataset toxic
 python logistic_baseline_tensorflow.py -nettype zero -dataset attack
