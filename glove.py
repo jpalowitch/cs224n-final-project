@@ -15,8 +15,9 @@ Tokenizer = tf.keras.preprocessing.text.Tokenizer
 batch_size = 512
 data_sets = ["train"]
 x = 1
-num_epochs = 20
+num_epochs = 10
 embedding_size = 100
+device = "/cpu:0"
 
 def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
     """ Builds a cooccurrence matrix as a dictionary.
@@ -100,49 +101,50 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
 
-    # variables
-    # weights for input (i) and context (j) vectors
-    # tokens are indexed at 1, so need shape needs to be vocab_size + 1
-    with tf.variable_scope(scope):
-        W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
-        W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+    with tf.device(device):
+        # variables
+        # weights for input (i) and context (j) vectors
+        # tokens are indexed at 1, so need shape needs to be vocab_size + 1
+        with tf.variable_scope(scope):
+            W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+            W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
 
-        # each word has a scalar weight for when it is a center or context word
-        B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
-        B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
+            # each word has a scalar weight for when it is a center or context word
+            B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
+            B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
 
-    # add placeholders for indices for the input and output words and cooccurrence for (v, u)
-    i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
-    j = tf.placeholder(tf.int32, shape=(batch_size), name="output_batch")
-    X_ij = tf.placeholder(tf.float32, shape=(batch_size), name="context_batch")
+        # add placeholders for indices for the input and output words and cooccurrence for (v, u)
+        i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
+        j = tf.placeholder(tf.int32, shape=(batch_size), name="output_batch")
+        X_ij = tf.placeholder(tf.float32, shape=(batch_size), name="context_batch")
 
-    # weights and biases
-    w_i = tf.nn.embedding_lookup(W_i, i)
-    w_j = tf.nn.embedding_lookup(W_j, j)
-    b_i = tf.nn.embedding_lookup(B_i, i)
-    b_j = tf.nn.embedding_lookup(B_j, j)
+        # weights and biases
+        w_i = tf.nn.embedding_lookup(W_i, i)
+        w_j = tf.nn.embedding_lookup(W_j, j)
+        b_i = tf.nn.embedding_lookup(B_i, i)
+        b_j = tf.nn.embedding_lookup(B_j, j)
 
-    # actual math
-    # f (X_ij): map the function count < max_count ? (count/max_count)^2 : 1 onto each element
-    f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.square(tf.divide(x_ij, x_ij_max)), lambda: 1.0), X_ij)
+        # actual math
+        # f (X_ij): map the function count < max_count ? (count/max_count)^2 : 1 onto each element
+        f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.square(tf.divide(x_ij, x_ij_max)), lambda: 1.0), X_ij)
 
-    # w_i * w_j + b_i + b_j + log(X_ij)
-    # the weights are row vectors so need to calculate outer product
-    w_j_transpose = tf.transpose(w_j)
-    inner_value = tf.matmul(w_i, w_j_transpose) + b_i + b_j - tf.log(X_ij)
+        # w_i * w_j + b_i + b_j + log(X_ij)
+        # the weights are row vectors so need to calculate outer product
+        w_j_transpose = tf.transpose(w_j)
+        inner_value = tf.matmul(w_i, w_j_transpose) + b_i + b_j - tf.log(X_ij)
 
-    # loss: f(X_ij) * [(w_i * w_j + b_i + b_j + log(X_ij))^2]
-    f_expanded = tf.expand_dims(f, 1)
-    loss = f * tf.pow(inner_value, 2)
+        # loss: f(X_ij) * [(w_i * w_j + b_i + b_j + log(X_ij))^2]
+        f_expanded = tf.expand_dims(f, 1)
+        loss = f * tf.pow(inner_value, 2)
 
-    # reduce for entire batch
-    total_loss = tf.reduce_sum(loss)
+        # reduce for entire batch
+        total_loss = tf.reduce_sum(loss)
 
-    # set optimizer
-    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
+        # set optimizer
+        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
-    # treating final word vectors as i + j
-    combined_embeddings = W_i + W_j
+        # treating final word vectors as i + j
+        combined_embeddings = W_i + W_j
 
     # train!
     with tf.Session() as sess:
@@ -367,6 +369,18 @@ def test_minibatch():
         print 'j:       {}'.format(j)
         print 'count:   {}'.format(X_ij)
 
+def test_gpu():
+    print "Device: {}".format(device)
+    with tf.device(device):
+        a = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[2, 3], name='a')
+        b = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[3, 2], name='b')
+    c = tf.matmul(a, b)
+    # Creates a session with log_device_placement set to True.
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    # Runs the op.
+    print(sess.run(c))
+    sess.close()
+
 if __name__ == "__main__":
     myargs = getopts(argv)
     if "-bs" in myargs:
@@ -398,3 +412,10 @@ if __name__ == "__main__":
             test_train()
         elif myargs["-test"] == "cooccur":
             test_build_coccurrence_matrix()
+        elif myargs["-test"] == "gpu":
+            device = "/gpu:0"
+            test_gpu()
+
+    if "-mn" in myargs:
+        if myargs["-mn"] == "gpu":
+            device = "/gpu:0"
