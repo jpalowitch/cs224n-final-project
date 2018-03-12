@@ -139,7 +139,9 @@ def get_model():
     max_pool = GlobalMaxPooling1D()(x)
     if myargs['-attention'] == 'yes':
         attention_output = Lambda(get_attention_output)([x, avg_pool, max_pool])            
-    conc = concatenate([avg_pool, max_pool, attention_output])
+        conc = concatenate([avg_pool, max_pool, attention_output])
+    elif myargs['-attention'] == 'no':
+        conc = concatenate([avg_pool, max_pool])
     outp = Dense(2, activation="softmax")(conc)
     
     model = Model(inputs=inp, outputs=outp)
@@ -156,7 +158,7 @@ X_val = x_val
 y_tra = y_train
 y_val = y_val
 #X_tra, X_val, y_tra, y_val = train_test_split(x_train, y_train, train_size=0.95, random_state=233)
-batch_size = 64
+batch_size = 32
 nepochs = 3
 
 
@@ -176,6 +178,9 @@ for target_class in range(len(cnames)):
     aucscore = RocAuc.get_score()
     print("--auc is: ", aucscore)
     auc_scores.append(RocAuc.get_score())
+
+if myargs['-attention'] == 'yes':
+    FLAVOR = FLAVOR + '-attention'
 
 save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR, 
                 fn=aucfn, cnames=cnames)

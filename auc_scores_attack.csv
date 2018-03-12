@@ -1,3 +1,4 @@
 ,Approach,Classifier,Flavor,aggression,attack
 0,ngram,logistic,sklearn-SAG,0.9466826517,0.953639877
-1,GRU-perclass,logistic,pooled,0.9561357609,0.9600381327
+2,GRU-perclass,logistic,pooled,0.956133592969,0.960301057519
+2,GRU-perclass,logistic,pooled-attention,0.955502964378,0.959619560414
