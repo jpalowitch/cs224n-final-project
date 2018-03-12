@@ -25,14 +25,15 @@ class Diagnostics:
 		diag = Diagnostics(build='tf', model_type='logistic', preds_targets=pred_mat), example in logistic_baseline_tensorflow.py
 		diag.do_all_diagnostics()
 	"""
-	def __init__(self,build, model_type, preds_targets):
+	def __init__(self,build, model_type, preds_targets, dataset):
 		self.build = build #sklearn or tensorflow
 		self.model_type = model_type
 		self.preds_targets = preds_targets 
+        self.dataset = dataset
 		
 		(ts, micro) = datetime.utcnow().strftime('%Y%m%d%H%M%S.%f').split('.')
 		ts = "%s%03d" % (ts, int(micro) / 1000)
-		self.output_dir = 'model_info/' + str(build) + "/" + str(model_type) + "/" + ts + "/"
+		self.output_dir = 'model_info/' + dataset + "/" + str(build) + "/" + str(model_type) + "/" + ts + "/"
 		
 		if not os.path.exists(self.output_dir):
 			os.makedirs(self.output_dir) 

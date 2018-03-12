@@ -1,5 +1,6 @@
 from __future__ import print_function
 from project_utils import *
+#from diagnostics import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
@@ -8,6 +9,7 @@ from sys import argv
 import os
 import pandas as pd
 
+print(argv)
 # Getting command args
 # -nettype: either 'zero' or 'one', giving the number of hidden layers
 myargs = getopts(argv)
@@ -23,10 +25,25 @@ batch_size = 100
 display_step = 1
 dropout_rate = 0.5
 
+if  myargs['-dataset'] == 'attack':
+    vecpath = TFIDF_VECTORS_FILE_AGG
+    if not os.path.isfile(ATTACK_AGGRESSION_FN):
+        get_and_save_talk_data()
+    train, dev, test = get_TDT_split(
+        pd.read_csv(ATTACK_AGGRESSION_FN, index_col=0).fillna(' '))
+    cnames = train.columns.values[0:2]
+    aucfn = "auc_scores_attack.csv"
+elif myargs['-dataset'] == 'toxic':
+    vecpath = TFIDF_VECTORS_FILE_TOXIC
+    train, dev, test = get_TDT_split(
+        pd.read_csv('train.csv').fillna(' '))
+    cnames = CLASS_NAMES
+    aucfn = "auc_scores.csv"
+
+
 # Get data and featurizing
-train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
 train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
-    train, dev, test, sparse=True
+    train, dev, test, sparse=True, path=vecpath
 )
 n_train = train_vecs.shape[0]
 if batch_size is None:
@@ -87,21 +104,21 @@ global_init = tf.global_variables_initializer()
 
 
 auc_scores = []
-pred_mat = np.ndarray(shape = (31915,0))
-target_mat = np.ndarray(shape = (31915,0))
-for target_class in range(6):
-    print("doing class " + CLASS_NAMES[target_class])
+pred_mat = np.ndarray(shape = (test_vecs.shape[0],0))
+target_mat = np.ndarray(shape = (test_vecs.shape[0],0))
+for target_class in range(len(cnames)):
+    print("doing class " + cnames[target_class])
     
     # Getting labels for training
-    train_labels = train[CLASS_NAMES[target_class]].values
+    train_labels = train[cnames[target_class]].values
     train_target = get_onehots_from_labels(train_labels)
-    dev_labels = dev[CLASS_NAMES[target_class]].values
+    dev_labels = dev[cnames[target_class]].values
     dev_target = get_onehots_from_labels(dev_labels)
-    test_labels = test[CLASS_NAMES[target_class]].values
+    test_labels = test[cnames[target_class]].values
     test_target = get_onehots_from_labels(test_labels)
     
     # Getting weight saver fn
-    save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR, CLASS_NAMES[target_class])
+    save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR, cnames[target_class])
 
     # Start training
     max_auc = 0
@@ -145,8 +162,12 @@ for target_class in range(6):
         target_mat = np.column_stack((target_mat, test_target[:,1]))
         
         sess.close()
-pred_mat = np.column_stack((pred_mat, target_mat))
-diagnostics = Diagnostics(build = 'tf', model_type = 'logistic-zero', preds_targets = pred_mat)
-diagnostics.do_all_diagnostics()
-save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
+#pred_mat = np.column_stack((pred_mat, target_mat))
+#diagnostics = Diagnostics(build = 'tf', 
+#                          model_type = 'logistic-' + myargs['-nettype'], 
+#                          preds_targets = pred_mat,
+#                          dataset = myargs['-dataset'])
+#diagnostics.do_all_diagnostics()
+save_auc_scores(auc_scores, APPROACH, CLASSIFIER, fn=aucfn, cnames=cnames,
+                flavor=FLAVOR + "-" + "nettype=" + myargs['-nettype'])
 
