@@ -8,8 +8,10 @@ from sklearn.metrics import roc_auc_score
 from keras.models import Model
 from keras.layers import Input, Dense, Embedding, SpatialDropout1D, concatenate
 from keras.layers import GRU, Bidirectional, GlobalAveragePooling1D, GlobalMaxPooling1D
+from keras.layers import dot, add, multiply, Lambda # need for attention
 from keras.preprocessing import text, sequence
 from keras.callbacks import Callback
+from keras import backend as K
 
 from project_utils import *
 from sys import argv
@@ -105,6 +107,28 @@ class RocAucEvaluation(Callback):
         score = roc_auc_score(self.y_val, y_pred)
         return score
 
+def rowise_matmul(a, b, add_axis=1, sum_axis=2):
+    """ Expands b in a middle axis, takes element-wise product with a,
+        and reduce_sums the product along the middle axis.
+    Args:
+        a: [None, M, H] tensor
+        b: [None, M] tensor or [None, H] tensor
+    Returns:
+        the axis-1 sum of the element-wise product of a and b_star = b expanded
+        to dimension of a
+    """
+    b_star = K.repeat(b, K.int_shape(a)[add_axis])
+    if add_axis == 2:
+        b_star = K.permute_dimensions(b_star, (0, 2, 1))
+    return K.sum(multiply([a, b_star]), axis=sum_axis)
+
+def get_attention_output(tens_list):
+    """ Explanatory, see below
+    """
+    attention_avg = rowise_matmul(tens_list[0], tens_list[1])
+    attention_max = rowise_matmul(tens_list[0], tens_list[2])
+    attention_softmax = K.softmax(add([attention_avg, attention_max]))
+    return rowise_matmul(tens_list[0], attention_softmax, 2, 1)
 
 def get_model():
     inp = Input(shape=(maxlen, ))
@@ -113,7 +137,9 @@ def get_model():
     x = Bidirectional(GRU(80, return_sequences=True))(x)
     avg_pool = GlobalAveragePooling1D()(x)
     max_pool = GlobalMaxPooling1D()(x)
-    conc = concatenate([avg_pool, max_pool])
+    if myargs['-attention'] == 'yes':
+        attention_output = Lambda(get_attention_output)([x, avg_pool, max_pool])            
+    conc = concatenate([avg_pool, max_pool, attention_output])
     outp = Dense(2, activation="softmax")(conc)
     
     model = Model(inputs=inp, outputs=outp)
@@ -130,19 +156,19 @@ X_val = x_val
 y_tra = y_train
 y_val = y_val
 #X_tra, X_val, y_tra, y_val = train_test_split(x_train, y_train, train_size=0.95, random_state=233)
-batch_size = 32
+batch_size = 64
 nepochs = 3
 
 
 auc_scores = []
 for target_class in range(len(cnames)):
-
+    
     print("doing class " + cnames[target_class])
     train_target = get_onehots_from_labels(y_tra[:, target_class])
     dev_target = get_onehots_from_labels(y_val[:, target_class])
     RocAuc = RocAucEvaluation(validation_data=(X_val, dev_target), interval=1)
     model = get_model()
-
+    
     # Fitting and predicting
     hist = model.fit(X_tra, train_target, batch_size=batch_size, epochs=nepochs, 
                      validation_data=(X_val, dev_target),
