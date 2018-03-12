@@ -103,6 +103,7 @@ class RocAucEvaluation(Callback):
     def get_score(self):
         y_pred = self.model.predict(self.X_val, verbose=0)
         score = roc_auc_score(self.y_val, y_pred)
+        return score
 
 
 def get_model():
@@ -130,7 +131,7 @@ y_tra = y_train
 y_val = y_val
 #X_tra, X_val, y_tra, y_val = train_test_split(x_train, y_train, train_size=0.95, random_state=233)
 batch_size = 32
-epochs = 3
+nepochs = 3
 
 
 auc_scores = []
@@ -143,7 +144,7 @@ for target_class in range(6):
     model = get_model()
 
     # Fitting and predicting
-    hist = model.fit(X_tra, train_target, batch_size=batch_size, epochs=epochs, 
+    hist = model.fit(X_tra, train_target, batch_size=batch_size, epochs=nepochs, 
                      validation_data=(X_val, dev_target),
                      callbacks=[RocAuc], verbose=2)
     aucscore = RocAuc.get_score()
