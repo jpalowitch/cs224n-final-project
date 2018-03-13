@@ -185,7 +185,7 @@ for target_class in range(6):
     test_target = get_onehots_from_labels(y_test[:, target_class])
     
     # Getting weight saver fn
-    save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR, CLASS_NAMES[target_class])
+    save_fn = saver_fn(vars(fields), cnames(target_class))
 
     # Start training
     max_auc = 0
@@ -230,5 +230,5 @@ for target_class in range(6):
 
 fields = vars(args)
 dataset = fields.pop('dataset')
-save_auc_scores(auc_scores, fields, dataset, cnames)
+save_rnn_auc_scores(auc_scores, fields, dataset, cnames)
 

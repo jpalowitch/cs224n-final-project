@@ -315,6 +315,13 @@ def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
         approach, classifier, flavor, class_name)
 
+def saver_fn_rnn(fields, class_name='all'):
+    fkeys = [str(x) for x in list(fields.keys)]
+    fvals = [str(x) for x in list(fields.values)]
+    ids = [a + '=' + b for a, b in zip(fkeys, fvals)]
+    fn = '_'.join(ids) + '_' + class_name + '_' + '.weights'
+    return fn
+
 def getopts(argv):
     """ Gets and parses command-line arguments.
 
