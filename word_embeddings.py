@@ -14,7 +14,7 @@ GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
 EMBEDDING_DIM = 50
 TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
-N_DIMENSIONS = 100
+N_DIMENSIONS = 50
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
 use_local_glove_vectors = None
 # Link for GloVe vectors: https://nlp.stanford.edu/projects/glove/
@@ -58,39 +58,57 @@ def vectorize_sentences_concat(df, embeddings):
         masks.append(mask)
     return sentences, masks
 
-def vectorize_sentences_sum(df, embeddings):
+def vectorize_sentence_average(tokenizer, pretrained_embeddings, sequences, use_local=False, local_embeddings=None):
     """ Vectorizes sentences by summing the GloVe representations of each word.
 
     Args:
         df: sentences to vectorize
         embeddings: trained word vectors
+        use_local: whether to use the embeddings trained on the corpus
+        local_embeddings: embeddings trained on the corpus
     Returns:
-        sentences: list of vectorized representation of words
+        sentences: single vector representation of the sentence
     """
+    print "Vectorizing sentences"
     sentences = []
-    for sentence in df:
-        vectorized_sentence = np.zeros((N_DIMENSIONS,))
-        sentence_tokens = tokenize(sentence.decode("utf-8"))
-        added = False
-        for word in sentence_tokens:
-            glove_vector = embeddings.get(word)
-            # only add if in embedding
-            if glove_vector is not None:
-                vectorized_sentence = vectorized_sentence + glove_vector
-                added = True
+    # maps word indices to words so that it can be read from the embeddings matrix
+    word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
+    # use command line arg if defined
+    if use_local_glove_vectors is not None:
+        use_local = use_local_glove_vectors
 
-        if len(sentence_tokens) > 0 and added:
-            vectorized_sentence = np.divide(vectorized_sentence, float(len(sentence_tokens)))
+    for idx, token_ids in enumerate(sequences):
+        if idx % 1000 == 0:
+            print "On line: {}".format(idx)
+        vectorized_sentence = np.zeros((N_DIMENSIONS,))
+        added = False
+        for token in token_ids:
+            if use_local == True:
+                vectorized_sentence = vectorized_sentence + local_embeddings[token]
+                added = True
+            else:
+                word = word_index_reverse[token]
+                glove_vector = pretrained_embeddings.get(word)
+                # only add if in embedding
+                if glove_vector is not None:
+                    vectorized_sentence = vectorized_sentence + glove_vector
+                    added = True
+
+        # Only average if valid tokens added to sentence
+        if len(token_ids) > 0 and added:
+            vectorized_sentence = np.divide(vectorized_sentence, float(len(token_ids)))
         sentences.append(vectorized_sentence)
+    print "Done"
     return sentences
 
-def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_files=True):
+def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_files=True, use_local=False):
     """ Returns an object containing the sentence vectors and word embeddings lookup
         for each dataset.
 
     Args:
         path: path to save the vectors to
         load_files: whether to use the saved values
+        use_local: whether to use locally trained GloVe word embeddings
     Returns:
         sentence_vectors: Object containing sentence vectors and tokenizer
         information for each dataset.
@@ -118,28 +136,34 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
         dev_sequences = dev_tokenizer.texts_to_sequences(dev_df)
         test_sequences = test_tokenizer.texts_to_sequences(test_df)
 
-        embeddings = get_word_vectors()
+        embeddings = get_pretrained_glove_vectors()
+        local_train_embeddings  = read_local_vectors("train")
+        local_dev_embeddings  = read_local_vectors("dev")
+        local_test_embeddings  = read_local_vectors("test")
         # train_vectors_concat, train_masks = vectorize_sentences_concat(train_df, embeddings)
         # dev_vectors_concat, dev_masks = vectorize_sentences_concat(dev_df, embeddings)
         # test_vectors_concat, test_masks = vectorize_sentences_concat(test_df, embeddings)
 
         sentence_vectors = {
             "train": {
-                "vectors_sum": vectorize_sentences_sum(train_df, embeddings),
+                "vectors": vectorize_sentence_average(train_tokenizer, embeddings, train_sequences, \
+                                                        use_local, local_embeddings=local_train_embeddings),
                 # "vectors_concat": train_vectors_concat,
                 # "masks": train_masks,
                 "word_index": train_tokenizer.word_index,
                 "sequences": train_sequences
             },
             "dev": {
-                "vectors_sum": vectorize_sentences_sum(dev_df, embeddings),
+                "vectors": vectorize_sentence_average(dev_tokenizer, embeddings, dev_sequences, \
+                                                        use_local, local_embeddings=local_dev_embeddings),
                 # "vectors_concat": dev_vectors_concat,
                 # "masks": dev_masks,
                 "word_index": dev_tokenizer.word_index,
                 "sequences": dev_sequences
             },
             "test": {
-                "vectors_sum": vectorize_sentences_sum(test_df, embeddings),
+                "vectors": vectorize_sentence_average(test_tokenizer, embeddings, test_sequences, \
+                                                        use_local, local_embeddings=local_test_embeddings),
                 # "vectors_concat": test_vectors_concat,
                 # "masks": test_masks,
                 "word_index": test_tokenizer.word_index,
@@ -151,7 +175,7 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
             pickle.dump(sentence_vectors, fp)
         return sentence_vectors
 
-def get_word_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
+def get_pretrained_glove_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
     """ Fetches GloVe word embeddings.
 
     Args:
@@ -208,7 +232,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             embedding_matrix = read_local_vectors(data_set)
 
         else:
-            embeddings = get_word_vectors()
+            embeddings = get_pretrained_glove_vectors()
             embedding_matrix = np.zeros((len(sentence_vectors.get("word_index")) + 1, N_DIMENSIONS))
             # map word indices to GloVe vectors
             for word, idx in sentence_vectors.get("word_index").items():
@@ -237,13 +261,16 @@ def read_local_vectors(data_set):
         embeddings: GloVe embeddings
     """
     path = "data/" + data_set + "_" + "embeddings.pkl"
+    print "Reading {} data set".format(data_set)
     if os.path.isfile(path):
         with open(path, "rb") as fp:
             embeddings = pickle.load(fp)
+        print "Done"
         return embeddings
     else:
-        print "Could not find dataset"
+        print "Could not find {} dataset, generating embeddings".format(data_set)
         embeddings = generate_embeddings([data_set])
+        print "Done"
         return embeddings
 
 def test_glove_vectors():
@@ -255,11 +282,6 @@ def test_glove_vectors():
     assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
     print "GloVe vector dimensions are correct"
 
-def test(use_local=False):
-    if use_local_glove_vectors is not None:
-        use_local = use_local_glove_vectors
-    print 'arg: {}'.format(use_local)
-
 def test_get_embedding_matrix_and_sequences():
     embeddings, sequences = get_embedding_matrix_and_sequences()
     print 'embedding 1: {}'.format(embeddings[1])
@@ -267,6 +289,11 @@ def test_get_embedding_matrix_and_sequences():
     sequence = sequences[1]
     for word in sequence:
         print 'word: {} embedding: {}'.format(word, embeddings[word])
+
+def test_get_tokenized_sentences_local_embeddings():
+    sentences = get_tokenized_sentences(load_files=False, use_local=True)
+    train_vectors = sentences.get("train").get("vectors")
+    print train_vectors[0]
 
 if __name__ == "__main__":
     myargs = getopts(argv)
@@ -276,3 +303,5 @@ if __name__ == "__main__":
     if "-test" in myargs:
         if myargs["-test"] == "matrix":
             test_get_embedding_matrix_and_sequences()
+        if myargs["-test"] == "sentences":
+            test_get_tokenized_sentences_local_embeddings()
