@@ -21,8 +21,15 @@ import os
 import pandas as pd
 
 # Getting command args
-# -nettype: either 'zero' or 'one', giving the number of hidden layers
-myargs = getopts(argv)
+import argparse
+parser = argparse.ArgumentParser()
+parser.add_argument("-embeds", help="[stock, ours]", type=str, default="stock")
+parser.add_argument("-dataset", help="[toxic, attack]", type=str, default="toxic")
+parser.add_argument("-cell", help="[gru, lstm]", type=str, default="gru")
+parser.add_argument("-bd", help="add for bidirectional", action="store_true")
+parser.add_argument("-attn", help="add for attention", action="store_true")
+args=parser.parse_args()
+
 
 APPROACH = "rnn"
 CLASSIFIER = "logistic"
@@ -41,7 +48,7 @@ training_epochs = 3
 
 
 # Preparing data
-if myargs['-dataset'] == 'attack':
+if args.dataset == 'attack':
     vecpath = TFIDF_VECTORS_FILE_AGG
     if not os.path.isfile(ATTACK_AGGRESSION_FN):
         get_and_save_talk_data()
@@ -49,7 +56,7 @@ if myargs['-dataset'] == 'attack':
         pd.read_csv(ATTACK_AGGRESSION_FN, index_col=0).fillna(' '))
     cnames = train.columns.values[0:2]
     aucfn = "auc_scores_attack.csv"
-elif myargs['-dataset'] == 'toxic':
+elif args.dataset == 'toxic':
     vecpath = TFIDF_VECTORS_FILE_TOXIC
     train, dev, test = get_TDT_split(
         pd.read_csv('train.csv').fillna(' '))
@@ -65,7 +72,7 @@ X_test = test["comment_text"].fillna("fillna").values
 y_test = test[cnames].values
 
 # Getting embeddings
-if myargs['-embeds'] == 'stock':
+if args.embeds == 'stock':
     FLAVOR = FLAVOR + 'stockEmbeds'
     EMBEDDING_FILE = 'glove.6B/glove.6B.100d.txt' # Originally 300d
     # Getting embeddings
@@ -73,7 +80,7 @@ if myargs['-embeds'] == 'stock':
         X_train, X_dev, X_test,
         embed_file=EMBEDDING_FILE, embed_size=embed_size,
         max_features=max_features)
-elif myargs['-embeds'] == 'ours':
+elif args.embeds == 'ours':
     FLAVOR = FLAVOR + 'ourEmbeds'
     embedding_matrix, X_train = get_embedding_matrix_and_sequences()
     _, X_dev = get_embedding_matrix_and_sequences(data_set="dev")
