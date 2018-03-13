@@ -136,10 +136,7 @@ def calc_auc(labels, probs, mean=True):
     """
     aucs = []
     if len(probs.shape) > 1:
-        print ("multiple aucs needed")
         for i in range(probs.shape[1]):
-            print("--" + str(i))
-            print("--aucs:" + str(aucs))
             aucs.append(roc_auc_score(labels[:, i], probs[:, i]))
     else:
         aucs.append(roc_auc_score(labels, probs))
@@ -201,7 +198,7 @@ def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
         else:
             old_data = old_data.drop_duplicates(subset=ow_fields, keep='first')
     else:
-        old_data = pd.DataFrame(data=new_data_d, index=[0])
+        old_data = pd.DataFrame(data=fields, index=[0])
     old_data.to_csv(fn)
     return None
 
@@ -322,7 +319,7 @@ def saver_fn_rnn(fields, class_name='all'):
     fkeys = [str(x) for x in list(fields.keys())]
     fvals = [str(x) for x in list(fields.values())]
     ids = [a + '-' + b for a, b in zip(fkeys, fvals)]
-    fn = './' + '_'.join(ids) + '_' + class_name + '.weights'
+    fn = './sess_saves/' + '_'.join(ids) + '_' + class_name + '.weights'
     return fn
 
 def getopts(argv):
