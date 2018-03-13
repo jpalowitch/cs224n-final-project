@@ -8,7 +8,6 @@ from sys import argv
 from tensorflow.python.ops import init_ops
 from word_embeddings import *
 
-
 from keras.models import Model
 from keras.layers import Input, Dense, Embedding, SpatialDropout1D, concatenate
 from keras.layers import GRU, Bidirectional, GlobalAveragePooling1D, GlobalMaxPooling1D
@@ -19,6 +18,8 @@ from keras import backend as K
 
 import os
 import pandas as pd
+import random
+random.seed(RUN_SEED)
 
 # Getting command args
 import argparse
@@ -30,9 +31,13 @@ parser.add_argument("-bd", help="add for bidirectional", action="store_true")
 parser.add_argument("-attn", help="add for attention", action="store_true")
 parser.add_argument("-embed_drop", help="dropout probability for embeddings = integer in [0, 100]; default 0", default=0, type=int)
 parser.add_argument("-dense_drop", help="dropout probability for final dense layer = integer in [0, 100]; default 0", default=0, type=int)
-parser.add_argument("-weight_reg", help="regularization exponent = -3, -2, -1, 0: beta = 10**weight_reg if nonzero, else is zero; default is 0 == no regularization",
+parser.add_argument("-weight_reg", help="regularization exponent = 3, 2, 1, 0: beta = 10**-weight_reg if nonzero, else is zero; default is 0 == no regularization",
 type=int, default=0)
 parser.add_argument("-nepochs", help="number of training epochs", type=int, default=3)
+parser.add_argument("-sigmoid", help="do sigmoid model instead of per-class", action="store_true")
+parser.add_argument("-gpu", help="add to use gpu on azure", action="store_true")
+parser.add_argument("-hidden_size", help="int: size of rnn layer", default=80, type=int)
+parser.add_argument("-max_length", help="int: size of longest sequence", default=50, type=int)
 args=parser.parse_args()
 
 APPROACH = "rnn"
@@ -42,14 +47,14 @@ FLAVOR = "tensorflow-ADAM-kerasSeqs"
 # Parameters
 max_features = 10000 # Originally 30000
 learning_rate = 0.001
-hidden_size = 80
+hidden_size = args.hidden_size
 batch_size = 32
 embed_size = 100
-max_length = 50
+max_length = args.max_length
 display_step = 1
 dense_dropout = args.dense_drop / 100.0
 embed_dropout = args.embed_drop / 100.0
-weight_reg = 10.0**args.weight_reg * int(args.weight_reg > 0)
+weight_reg = 10.0**(-args.weight_reg) * int(args.weight_reg > 0)
 training_epochs = args.nepochs
 
 
@@ -69,6 +74,10 @@ elif args.dataset == 'toxic':
     cnames = CLASS_NAMES
     aucfn = "auc_scores.csv"
 
+if args.sigmoid:
+    nclasses = len(cnames)
+else:
+    nclasses = 2
 
 X_train = train["comment_text"].fillna("fillna").values
 y_train = train[cnames].values
@@ -104,7 +113,7 @@ n_train = len(x_dev)
 print("building graph")
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
-labels = tf.placeholder(tf.int32, [None, 2])
+labels = tf.placeholder(tf.int32, [None, nclasses])
 seq_lengths = tf.placeholder(tf.int32, [None])
 
 # Defining embeddings into graph
@@ -137,25 +146,36 @@ x = tf.concat([xmax, xmean], axis=1)
 # Define final layer variables
 final_size = 2 * (1 + int(args.bd)) * hidden_size
 x = tf.nn.dropout(x, keep_prob=1.0 - dense_dropout, noise_shape=[1, final_size])
-U = tf.get_variable(name="U", shape=(final_size, 2),
+U = tf.get_variable(name="U", shape=(final_size, nclasses),
                     initializer=tf.contrib.layers.xavier_initializer())
-b2 = tf.get_variable(name="b2", shape=(2),
+b2 = tf.get_variable(name="b2", shape=(nclasses),
                      initializer=tf.constant_initializer(0.0))
 
 # Making prediction
 logits = tf.matmul(x, U) + b2
-pred = tf.nn.softmax(logits)
+if args.sigmoid:
+    pred = tf.nn.sigmoid(logits)
+else:
+    pred = tf.nn.softmax(logits)
 
 # Get loss
-ces = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels)
-cost = tf.reduce_mean(ces)
+if args.sigmoid:
+    labels = tf.cast(labels, dtype=tf.float32)
+    ces = tf.nn.sigmoid_cross_entropy_with_logits(logits=logits, labels=labels)
+else:
+    ces = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels)
+cost = tf.reduce_mean(ces) + weight_reg * tf.nn.l2_loss(U)
 
 # Optimizer
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Final scoring
-def calc_auc_tf(X, Y, seq_lens): 
-    return calc_auc(Y[:, 1], pred.eval({inputs: X, seq_lengths: seq_lens})[:, 1])
+def calc_auc_tf(X, Y, seq_lens, mean=True):
+    if args.sigmoid: 
+        return calc_auc(Y, pred.eval({inputs: X, seq_lengths: seq_lens}), mean)
+    else:
+        return calc_auc(Y[:, 1], pred.eval({inputs: X, seq_lengths: seq_lens})[:, 1])
+
 
 # Making weight saving functionality
 saver = tf.train.Saver()
@@ -163,7 +183,10 @@ saver = tf.train.Saver()
 # Initialize the variables (i.e. assign their default value)
 global_init = tf.global_variables_initializer()
 
-print("training on 6 classes")
+if args.sigmoid:
+    print("training on all classes simultaneously")
+else:
+    print("training on 6 classes")
 
 # Preparing training
 X_tra = x_train
@@ -175,21 +198,30 @@ y_test = y_test
 
 auc_scores = []
 dev_lengths = np.count_nonzero(X_dev, axis=1)
-test_lenghts = np.count_nonzero(X_test, axis=1)
+test_lengths = np.count_nonzero(X_test, axis=1)
 for target_class in range(6):
     print("doing class " + cnames[target_class])
     
     # Getting labels for training
-    train_target = get_onehots_from_labels(y_tra[:, target_class])
-    dev_target = get_onehots_from_labels(y_dev[:, target_class])
-    test_target = get_onehots_from_labels(y_test[:, target_class])
-    
+    if args.sigmoid:
+        train_target = y_tra
+        dev_target = y_dev
+        test_target = y_test
+    else:
+        train_target = get_onehots_from_labels(y_tra[:, target_class])
+        dev_target = get_onehots_from_labels(y_dev[:, target_class])
+        test_target = get_onehots_from_labels(y_test[:, target_class])
+            
     # Getting weight saver fn
-    save_fn = saver_fn(vars(fields), cnames(target_class))
+    save_fn = saver_fn_rnn(vars(args), cnames[target_class])
 
     # Start training
     max_auc = 0
-    with tf.Session() as sess:
+    if args.gpu:
+        make_sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    else:
+        make_sess = tf.Session()
+    with make_sess as sess:
     
         # Run initializer
         sess.run(global_init)
@@ -222,13 +254,20 @@ for target_class in range(6):
         
         print("Optimization Finished!")
         saver.restore(sess, save_fn)
-        AUC = calc_auc_tf(X_test, test_target, test_lengths)
-        print ("Test AUC:", AUC)
-        auc_scores.append(AUC)
-        
+        if args.sigmoid:
+            auc_scores = calc_auc_tf(X_test, test_target, test_lengths, mean=False)
+            print (auc_scores)
+            print (type(auc_scores))
+        else:
+            AUC = calc_auc_tf(X_test, test_target, test_lengths)
+            print ("Test AUC:", AUC)
+            auc_scores.append(AUC)        
         sess.close()
+    if args.sigmoid:
+        break
 
 fields = vars(args)
+fields.pop('gpu')
 dataset = fields.pop('dataset')
 save_rnn_auc_scores(auc_scores, fields, dataset, cnames)
 

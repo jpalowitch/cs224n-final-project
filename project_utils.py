@@ -136,7 +136,10 @@ def calc_auc(labels, probs, mean=True):
     """
     aucs = []
     if len(probs.shape) > 1:
+        print ("multiple aucs needed")
         for i in range(probs.shape[1]):
+            print("--" + str(i))
+            print("--aucs:" + str(aucs))
             aucs.append(roc_auc_score(labels[:, i], probs[:, i]))
     else:
         aucs.append(roc_auc_score(labels, probs))
@@ -316,10 +319,10 @@ def saver_fn(approach, classifier, flavor, class_name='all'):
         approach, classifier, flavor, class_name)
 
 def saver_fn_rnn(fields, class_name='all'):
-    fkeys = [str(x) for x in list(fields.keys)]
-    fvals = [str(x) for x in list(fields.values)]
-    ids = [a + '=' + b for a, b in zip(fkeys, fvals)]
-    fn = '_'.join(ids) + '_' + class_name + '_' + '.weights'
+    fkeys = [str(x) for x in list(fields.keys())]
+    fvals = [str(x) for x in list(fields.values())]
+    ids = [a + '-' + b for a, b in zip(fkeys, fvals)]
+    fn = './' + '_'.join(ids) + '_' + class_name + '.weights'
     return fn
 
 def getopts(argv):
