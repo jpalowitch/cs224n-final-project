@@ -87,9 +87,11 @@ elif args.embeds == 'ours':
     _, X_test = get_embedding_matrix_and_sequences(data_set="test")
 
 # Padding sequences
-x_train = sequence.pad_sequences(X_train, maxlen=max_length)
-x_dev = sequence.pad_sequences(X_dev, maxlen=max_length)
-x_test = sequence.pad_sequences(X_test, maxlen=max_length)
+padder = lambda z: sequence.pad_sequences(
+    z, padding='post', truncating='post', maxlen=max_length)
+x_train = padder(X_train)
+x_dev = padder(X_dev)
+x_test = padder(X_test)
 n_train = len(x_dev)
 
 
@@ -97,6 +99,7 @@ print("building graph")
 # tf Graph Input
 inputs = tf.placeholder(tf.int32, shape=(None, max_length))
 labels = tf.placeholder(tf.int32, [None, 2])
+seq_lengths = tf.placeholder(tf.int32, [None])
 
 # Defining embeddings into graph
 embeddings = tf.Variable(embedding_matrix)
@@ -108,10 +111,12 @@ x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
 cell = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
 if args.bd:
     cell_bw = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
-    xs, state = tf.nn.bidirectional_dynamic_rnn(cell, cell_bw, x, dtype=tf.float32)
+    xs, state = tf.nn.bidirectional_dynamic_rnn(
+        cell, cell_bw, x, sequence_length=seq_lengths, dtype=tf.float32)
     x = tf.concat(xs, axis=2)
 else:
-    x, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
+    x, state = tf.nn.dynamic_rnn(
+        cell, x, sequence_length=seq_lengths, dtype=tf.float32)
 
 xmax = tf.reduce_max(x, axis=1)
 xmean = tf.reduce_mean(x, axis=1)
@@ -128,15 +133,15 @@ logits = tf.matmul(x, U) + b2
 pred = tf.nn.softmax(logits)
 
 # Get loss
-ces = tf.nn.softmax_cross_entropy_with_logits(logits=logits, labels=labels)
+ces = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels)
 cost = tf.reduce_mean(ces)
 
 # Optimizer
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
 
 # Final scoring
-def calc_auc_tf(X, Y): 
-    return calc_auc(Y[:, 1], pred.eval({inputs: X})[:, 1])
+def calc_auc_tf(X, Y, seq_lens): 
+    return calc_auc(Y[:, 1], pred.eval({inputs: X, seq_lengths: seq_lens})[:, 1])
 
 # Making weight saving functionality
 saver = tf.train.Saver()
@@ -155,7 +160,9 @@ y_dev = y_dev
 y_test = y_test
 
 auc_scores = []
-for target_class in range(6):
+dev_lengths = np.count_nonzero(X_dev, axis=1)
+test_lenghts = np.count_nonzero(X_test, axis=1)
+for target_class in range(1):
     print("doing class " + CLASS_NAMES[target_class])
     
     # Getting labels for training
@@ -181,13 +188,16 @@ for target_class in range(6):
             # Loop over batches
             minibatches = minibatch(X_tra, train_target, batch_size)
             for batch_xs, batch_ys in minibatches:
-                _, c = sess.run([optimizer, cost], feed_dict={inputs: batch_xs,
-                                                              labels: batch_ys})
+                batch_lengths = np.count_nonzero(batch_xs, axis=1)
+                _, c = sess.run([optimizer, cost], feed_dict={
+                    inputs: batch_xs, 
+                    labels: batch_ys, 
+                    seq_lengths: batch_lengths})
                 avg_cost += c / total_batch
             
             # Display logs
             if (epoch+1) % display_step == 0:
-                AUC = calc_auc_tf(X_dev, dev_target)
+                AUC = calc_auc_tf(X_dev, dev_target, dev_lengths)
                 print("Epoch:", '%04d' % (epoch+1), 
                       "cost=", avg_cost,
                       "dev.auc=", AUC)
@@ -198,11 +208,11 @@ for target_class in range(6):
         
         print("Optimization Finished!")
         saver.restore(sess, save_fn)
-        AUC = calc_auc_tf(X_test, test_target)
+        AUC = calc_auc_tf(X_test, test_target, test_lengths)
         print ("Test AUC:", AUC)
         auc_scores.append(AUC)
         
         sess.close()
 
-save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
+#save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
 
