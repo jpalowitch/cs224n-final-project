@@ -108,9 +108,14 @@ embeddings = tf.nn.embedding_lookup(params=embeddings, ids=inputs)
 x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
 
 # Run RNN and sum final product over sequence dimension
-cell = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
-if args.bd:
+if args.cell == 'gru':
+    cell = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
     cell_bw = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
+elif args.cell == 'lstm':
+    cell = tf.nn.rnn_cell.LSTMCell(num_units=hidden_size)
+    cell_bw = tf.nn.rnn_cell.LSTMCell(num_units=hidden_size)
+
+if args.bd:
     xs, state = tf.nn.bidirectional_dynamic_rnn(
         cell, cell_bw, x, sequence_length=seq_lengths, dtype=tf.float32)
     x = tf.concat(xs, axis=2)
