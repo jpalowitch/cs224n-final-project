@@ -106,11 +106,19 @@ x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
 
 # Run RNN and sum final product over sequence dimension
 cell = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
-x, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
-x = tf.reduce_sum(x, axis=1)
+if args.bd:
+    cell_bw = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
+    xs, state = tf.nn.bidirectional_dynamic_rnn(cell, cell_bw, x, dtype=tf.float32)
+    x = tf.concat(xs, axis=2)
+else:
+    x, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
+
+xmax = tf.reduce_max(x, axis=1)
+xmean = tf.reduce_mean(x, axis=1)
+x = tf.concat([xmax, xmean], axis=1)
 
 # Define final layer variables
-U = tf.get_variable(name="U", shape=(hidden_size, 2),
+U = tf.get_variable(name="U", shape=(2 * (1 + int(args.bd)) * hidden_size, 2),
                     initializer=tf.contrib.layers.xavier_initializer())
 b2 = tf.get_variable(name="b2", shape=(2),
                      initializer=tf.constant_initializer(0.0))
