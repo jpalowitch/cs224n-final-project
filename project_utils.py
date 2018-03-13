@@ -89,6 +89,17 @@ def get_TDT_split(df, split_prop=SPLIT_PROP, seed=SPLIT_SEED):
     test = df[-ndata[2]:]
     return train, dev, test
 
+def test_get_TDT_split():
+    data = pd.read_csv('train.csv').fillna(' ')
+    d11, d12, d13 = get_TDT_split(data)
+    d21, d22, d23 = get_TDT_split(data)
+    d31, d32, d33 = get_TDT_split(data)
+    assert d11[['comment_text']].values.flatten()[99] == \
+           d21[['comment_text']].values.flatten()[99] == \
+           d31[['comment_text']].values.flatten()[99]
+    print 'Random seed returned same values'
+    print  d31[['comment_text']].values.flatten()[99]
+
 def get_development_data():
     """Reads csv data and returns a very small portion of it for building models
     """
@@ -350,8 +361,8 @@ def get_and_save_talk_data():
 
     # Downloading
     if not os.path.isfile('personal_attack_comments.tsv'):
-        print("downloading personal_attack_comments")            
-        urllib.urlretrieve('https://ndownloader.figshare.com/files/7554634', 
+        print("downloading personal_attack_comments")
+        urllib.urlretrieve('https://ndownloader.figshare.com/files/7554634',
                            'personal_attack_comments.tsv')
         print("--done")
     if not os.path.isfile('personal_attack_annotations.tsv'):

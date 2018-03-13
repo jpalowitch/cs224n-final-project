@@ -15,10 +15,12 @@ Tokenizer = tf.keras.preprocessing.text.Tokenizer
 batch_size = 512
 data_sets = ["train"]
 x = 1
-num_epochs = 20
-embedding_size = 100
+num_epochs = 50
+embedding_size = 200
+device = "/cpu:0"
+num_words=100000
 
-def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
+def build_coccurrence_matrix(corpus, window_size=10, min_frequency=2):
     """ Builds a cooccurrence matrix as a dictionary.
 
     Args:
@@ -32,7 +34,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
     """
     print "Building cooccurrence matrix"
     # train tokenizer on corpus
-    tokenizer = Tokenizer()
+    tokenizer = Tokenizer(num_words=num_words)
     tokenizer.fit_on_texts(corpus)
     # print_tokenizer_information(tokenizer, corpus)
 
@@ -63,7 +65,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=0):
             for u_idx, u in enumerate(right_context_words):
                 distance = u_idx + 1
                 cooccurrence_matrix_unfiltered[(v, u)] += (1.0 / float(distance))
-
+    print "Completed counting occurences in {} iterations".format(idx)
     if min_frequency > 1:
         # matrix of (v, u) : count
         cooccurrence_matrix = defaultdict(float)
@@ -100,69 +102,63 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
 
-    # variables
-    # weights for input (i) and context (j) vectors
-    # tokens are indexed at 1, so need shape needs to be vocab_size + 1
-    with tf.variable_scope(scope):
-        W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
-        W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+    with tf.device(device):
+        # variables
+        # weights for input (i) and context (j) vectors
+        # tokens are indexed at 1, so need shape needs to be vocab_size + 1
+        with tf.variable_scope(scope):
+            W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+            W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
 
-        # each word has a scalar weight for when it is a center or context word
-        B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
-        B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer)
+            # each word has a scalar weight for when it is a center or context word
+            B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer())
+            B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer())
 
-    # add placeholders for indices for the input and output words and cooccurrence for (v, u)
-    i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
-    j = tf.placeholder(tf.int32, shape=(batch_size), name="output_batch")
-    X_ij = tf.placeholder(tf.float32, shape=(batch_size), name="context_batch")
+        # add placeholders for indices for the input and output words and cooccurrence for (v, u)
+        i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
+        j = tf.placeholder(tf.int32, shape=(batch_size), name="output_batch")
+        X_ij = tf.placeholder(tf.float32, shape=(batch_size), name="context_batch")
 
-    # weights and biases
-    w_i = tf.nn.embedding_lookup(W_i, i)
-    w_j = tf.nn.embedding_lookup(W_j, j)
-    b_i = tf.nn.embedding_lookup(B_i, i)
-    b_j = tf.nn.embedding_lookup(B_j, j)
+        # weights and biases
+        w_i = tf.nn.embedding_lookup(W_i, i)
+        w_j = tf.nn.embedding_lookup(W_j, j)
+        b_i = tf.nn.embedding_lookup(B_i, i)
+        b_j = tf.nn.embedding_lookup(B_j, j)
 
-    # actual math
-    # f (X_ij): map the function count < max_count ? (count/max_count)^2 : 1 onto each element
-    f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.square(tf.divide(x_ij, x_ij_max)), lambda: 1.0), X_ij)
+        # actual math
+        # f (X_ij): map the function count < max_count ? (count/max_count)^alpha : 1 onto each element
+        f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.pow(tf.divide(x_ij, x_ij_max), alpha), lambda: tf.cast(1.0, tf.float64)), X_ij)
 
-    # w_i * w_j + b_i + b_j + log(X_ij)
-    # the weights are row vectors so need to calculate outer product
-    w_j_transpose = tf.transpose(w_j)
-    inner_value = tf.matmul(w_i, w_j_transpose) + b_i + b_j - tf.log(X_ij)
+        # w_i * w_j + b_i + b_j + log(X_ij)
+        # the weights are row vectors so need to calculate outer product
+        w_j_transpose = tf.transpose(w_j)
+        inner_value = tf.matmul(w_i, w_j_transpose) + b_i + b_j - tf.log(X_ij)
 
-    # loss: f(X_ij) * [(w_i * w_j + b_i + b_j + log(X_ij))^2]
-    f_expanded = tf.expand_dims(f, 1)
-    loss = f * tf.pow(inner_value, 2)
+        # loss: f(X_ij) * [(w_i * w_j + b_i + b_j + log(X_ij))^2]
+        f_expanded = tf.expand_dims(f, 1)
+        loss = f * tf.pow(inner_value, 2)
 
-    # reduce for entire batch
-    total_loss = tf.reduce_sum(loss)
+        # reduce for entire batch
+        total_loss = tf.reduce_sum(loss)
 
-    # set optimizer
-    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
+        # set optimizer
+        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
-    # treating final word vectors as i + j
-    combined_embeddings = W_i + W_j
+        # treating final word vectors as i + j
+        combined_embeddings = W_i + W_j
 
     # train!
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
         for epoch in range(num_epochs):
-            if epoch % 10 == 0:
+            if epoch % 5 == 0:
                 print "On epoch: {}".format(epoch)
             idx = 0
             minibatches = get_cooccurrence_batches(cooccurrence_matrix, batch_size)
             for input_batch, context_batch, count_batch in minibatches:
                 if idx % 10000 == 0:
                     print "On iteration: {}".format(idx)
-                # make sure everything is the right shape
-                # f_array = sess.run(f, feed_dict={X_ij: [200, 20]})
-                # x_array = sess.run(X_ij, feed_dict={X_ij: [200, 20]})
-                # print 'f_array: {}'.format(f_array)
-                # print 'x_array: {}'.format(x_array)
-                # assert f_array.shape == x_array.shape
 
-                # finally train
                 feed_dict = {
                     i: input_batch,
                     j: context_batch,
@@ -290,6 +286,7 @@ def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.p
             embeddings = pickle.load(fp)
         return embeddings
     else:
+        print "Generating new GloVe embeddings for {} data set".format(data_set)
         embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
@@ -352,8 +349,8 @@ def test_glove_model(scope):
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, scope)
-    print "Final embeddings:"
-    print embeddings
+    print "Final embeddings shape {}:".format(np.array(embeddings).shape)
+    print embeddings[0]
 
 def test_minibatch():
     """ Tests minibatch using small data set.
@@ -366,6 +363,36 @@ def test_minibatch():
         print 'i:       {}'.format(i)
         print 'j:       {}'.format(j)
         print 'count:   {}'.format(X_ij)
+
+def test_f():
+    """ Tests the function for preventing common word pairs
+    """
+    x_ij_max = 100
+    alpha = 0.75
+    corpus = get_development_data()
+    cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
+    minibatches = get_cooccurrence_batches(cooccurrence_matrix, 5)
+    for batch in minibatches:
+        i, j, X_ij = batch
+        print 'count batch: {}'.format(X_ij)
+        f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.pow(tf.divide(x_ij, x_ij_max), alpha), lambda: tf.cast(1.0, tf.float64)), X_ij)
+        with tf.Session() as sess:
+            print'f: {}'.format(sess.run(f))
+            sess.close()
+        # just need to check for one batch
+        return
+
+def test_gpu():
+    print "Device: {}".format(device)
+    with tf.device(device):
+        a = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[2, 3], name='a')
+        b = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[3, 2], name='b')
+    c = tf.matmul(a, b)
+    # Creates a session with log_device_placement set to True.
+    sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
+    # Runs the op.
+    print(sess.run(c))
+    sess.close()
 
 if __name__ == "__main__":
     myargs = getopts(argv)
@@ -391,10 +418,19 @@ if __name__ == "__main__":
 
     if "-test" in myargs:
         if myargs["-test"] == "glove":
-            test_glove_model()
+            test_glove_model("development")
         elif myargs["-test"] == "minibatch":
             test_minibatch()
         elif myargs["-test"] == "train":
             test_train()
         elif myargs["-test"] == "cooccur":
             test_build_coccurrence_matrix()
+        elif myargs["-test"] == "gpu":
+            device = "/gpu:0"
+            test_gpu()
+        elif myargs["-test"] == "f":
+            test_f()
+
+    if "-mn" in myargs:
+        if myargs["-mn"] == "gpu":
+            device = "/gpu:0"
