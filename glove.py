@@ -14,11 +14,10 @@ Tokenizer = tf.keras.preprocessing.text.Tokenizer
 # Global vars set by command line arguments
 batch_size = 512
 data_sets = ["train"]
-x = 1
-num_epochs = 50
-embedding_size = 200
+num_epochs = 10
+embedding_size = 50
 device = "/cpu:0"
-num_words=100000
+num_words=10000
 
 def build_coccurrence_matrix(corpus, window_size=10, min_frequency=2):
     """ Builds a cooccurrence matrix as a dictionary.
@@ -127,7 +126,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
 
         # actual math
         # f (X_ij): map the function count < max_count ? (count/max_count)^alpha : 1 onto each element
-        f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.pow(tf.divide(x_ij, x_ij_max), alpha), lambda: tf.cast(1.0, tf.float64)), X_ij)
+        f = tf.map_fn(lambda x_ij: tf.cond(x_ij < x_ij_max, lambda: tf.pow(tf.divide(x_ij, x_ij_max), alpha), lambda: tf.cast(1.0, tf.float32)), X_ij)
 
         # w_i * w_j + b_i + b_j + log(X_ij)
         # the weights are row vectors so need to calculate outer product
@@ -280,13 +279,18 @@ def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.p
     Returns:
         embeddings: embeddings for one dataset
     """
-    full_path = "data/" + data_set + "_" + path
+    # append hyperparams to path
+    full_path = "data/" + data_set + "_" + str(embedding_size) + "_" +  \
+        str(num_words) + "_" + str(num_epochs) + "_" + path
     if os.path.isfile(full_path) and load_files:
         with open(full_path, "rb") as fp:
             embeddings = pickle.load(fp)
         return embeddings
     else:
-        print "Generating new GloVe embeddings for {} data set".format(data_set)
+        print "Generating new GloVe embeddings for {} data set and hyperparams:".format(data_set)
+        print "vocab size:      {}".format(num_words)
+        print "embedding size:  {}".format(embedding_size)
+        print "epochs:          {}".format(num_epochs)
         embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
@@ -396,8 +400,22 @@ def test_gpu():
 
 if __name__ == "__main__":
     myargs = getopts(argv)
+    print myargs
     if "-bs" in myargs:
         batch_size = int(myargs["-bs"])
+
+    if "-mn" in myargs:
+        if myargs["-mn"] == "gpu":
+            device = "/gpu:0"
+
+    if "-ep" in myargs:
+        num_epochs = int(myargs["-ep"])
+
+    if "-em" in myargs:
+        embedding_size = int(myargs["-em"])
+
+    if "-nm" in myargs:
+        num_words = int(myargs["-nm"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
@@ -409,12 +427,6 @@ if __name__ == "__main__":
             generate_embeddings(["dev"])
         elif run_arg == "test":
             generate_embeddings(["test"])
-
-    if "-ep" in myargs:
-        num_epochs = int(myargs["-ep"])
-
-    if "-em" in myargs:
-        embedding_size = int(myargs["-em"])
 
     if "-test" in myargs:
         if myargs["-test"] == "glove":
@@ -430,7 +442,3 @@ if __name__ == "__main__":
             test_gpu()
         elif myargs["-test"] == "f":
             test_f()
-
-    if "-mn" in myargs:
-        if myargs["-mn"] == "gpu":
-            device = "/gpu:0"
