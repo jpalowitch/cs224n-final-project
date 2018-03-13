@@ -28,8 +28,12 @@ parser.add_argument("-dataset", help="[toxic, attack]", type=str, default="toxic
 parser.add_argument("-cell", help="[gru, lstm]", type=str, default="gru")
 parser.add_argument("-bd", help="add for bidirectional", action="store_true")
 parser.add_argument("-attn", help="add for attention", action="store_true")
+parser.add_argument("-embed_drop", help="dropout probability for embeddings = integer in [0, 100]; default 0", default=0, type=int)
+parser.add_argument("-dense_drop", help="dropout probability for final dense layer = integer in [0, 100]; default 0", default=0, type=int)
+parser.add_argument("-weight_reg", help="regularization exponent = -3, -2, -1, 0: beta = 10**weight_reg if nonzero, else is zero; default is 0 == no regularization",
+type=int, default=0)
+parser.add_argument("-nepochs", help="number of training epochs", type=int, default=3)
 args=parser.parse_args()
-
 
 APPROACH = "rnn"
 CLASSIFIER = "logistic"
@@ -43,8 +47,10 @@ batch_size = 32
 embed_size = 100
 max_length = 50
 display_step = 1
-dropout_rate = 0.5
-training_epochs = 3
+dense_dropout = args.dense_drop / 100.0
+embed_dropout = args.embed_drop / 100.0
+weight_reg = 10.0**args.weight_reg * int(args.weight_reg > 0)
+training_epochs = args.nepochs
 
 
 # Preparing data
@@ -106,7 +112,8 @@ embeddings = tf.Variable(embedding_matrix)
 embeddings = tf.cast(embeddings, tf.float32)
 embeddings = tf.nn.embedding_lookup(params=embeddings, ids=inputs)
 x = tf.reshape(tensor=embeddings, shape=[-1, max_length, embed_size])
-
+x = tf.nn.dropout(x, keep_prob=1.0 - embed_dropout,
+               noise_shape=[1, 1, embed_size])
 # Run RNN and sum final product over sequence dimension
 if args.cell == 'gru':
     cell = tf.nn.rnn_cell.GRUCell(num_units=hidden_size)
@@ -128,7 +135,9 @@ xmean = tf.reduce_mean(x, axis=1)
 x = tf.concat([xmax, xmean], axis=1)
 
 # Define final layer variables
-U = tf.get_variable(name="U", shape=(2 * (1 + int(args.bd)) * hidden_size, 2),
+final_size = 2 * (1 + int(args.bd)) * hidden_size
+x = tf.nn.dropout(x, keep_prob=1.0 - dense_dropout, noise_shape=[1, final_size])
+U = tf.get_variable(name="U", shape=(final_size, 2),
                     initializer=tf.contrib.layers.xavier_initializer())
 b2 = tf.get_variable(name="b2", shape=(2),
                      initializer=tf.constant_initializer(0.0))
