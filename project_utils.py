@@ -183,6 +183,25 @@ def save_auc_scores(scores, approach, classifier, flavor,
     old_data.to_csv(fn)
     return None
 
+def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
+    """Records auc scores of rnn_tensorflow.py runs
+    """
+    fn = "auc_scores_rnn_" + dataset + ".csv"
+    ow_fields = list(fields.keys())
+    fields.update(zip(cnames, scores))
+    if os.path.isfile(fn):
+        old_data = pd.read_csv(fn, index_col=0)
+        new_data = pd.DataFrame(data=fields, index=[old_data.shape[0]])
+        old_data = old_data.append(new_data)
+        if overwrite:
+            old_data = old_data.drop_duplicates(subset=ow_fields, keep='last')
+        else:
+            old_data = old_data.drop_duplicates(subset=ow_fields, keep='first')
+    else:
+        old_data = pd.DataFrame(data=new_data_d, index=[0])
+    old_data.to_csv(fn)
+    return None
+
 def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
                             n_features=NUM_FEATURES, sparse=False):
     """ Vectorizes the corpus using tf-idf. Saves in sparse format. Also saves

@@ -176,8 +176,8 @@ y_test = y_test
 auc_scores = []
 dev_lengths = np.count_nonzero(X_dev, axis=1)
 test_lenghts = np.count_nonzero(X_test, axis=1)
-for target_class in range(1):
-    print("doing class " + CLASS_NAMES[target_class])
+for target_class in range(6):
+    print("doing class " + cnames[target_class])
     
     # Getting labels for training
     train_target = get_onehots_from_labels(y_tra[:, target_class])
@@ -228,5 +228,7 @@ for target_class in range(1):
         
         sess.close()
 
-#save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR)
+fields = vars(args)
+dataset = fields.pop('dataset')
+save_auc_scores(auc_scores, fields, dataset, cnames)
 
