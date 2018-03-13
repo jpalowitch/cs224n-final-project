@@ -11,6 +11,7 @@ PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import roc_auc_score
 from scipy.sparse import hstack
+from keras.preprocessing import text, sequence
 
 # Constants
 CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
@@ -24,6 +25,7 @@ TRAIN_DATA_FILE = "train.csv"
 NUM_FEATURES = 10000
 SESS_SAVE_DIRECTORY = "sess_saves"
 ATTACK_AGGRESSION_FN = "attack_aggression_data.csv"
+EMBEDDING_FILE = 'glove.6B/glove.6B.100d.txt' # Originally 300d
 
 def get_base2_labels(rows):
     """Converts a matrix of binary row vectors to labels.
@@ -225,6 +227,33 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
         dev_vecs = dev_vecs.toarray()
         test_vecs = test_vecs.toarray()
     return train_vecs, dev_vecs, test_vecs
+
+def get_stock_embeddings(X_train, X_dev, X_test, embed_file=EMBEDDING_FILE, embed_size=100, max_features=10000):
+    """ Gets stock embeddings. Adapted from 
+    https://www.kaggle.com/prashantkikani/pooled-gru-glove-with-preprocessing
+    """
+    tokenizer = text.Tokenizer(num_words=max_features)
+    tokenizer.fit_on_texts(list(X_train) + list(X_dev) + list(X_test))
+    X_train = tokenizer.texts_to_sequences(X_train)
+    X_dev = tokenizer.texts_to_sequences(X_dev)
+    X_test = tokenizer.texts_to_sequences(X_test)
+
+    def get_coefs(word, *arr): 
+        return word, np.asarray(arr, dtype='float32')
+
+    embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(embed_file))
+
+    all_embs = np.stack(embeddings_index.values())
+    emb_mean, emb_std = all_embs.mean(), all_embs.std()
+
+    word_index = tokenizer.word_index
+    nb_words = min(max_features, len(word_index))
+    embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_words, embed_size))
+    for word, i in word_index.items():
+        if i >= max_features: continue
+        embedding_vector = embeddings_index.get(word)
+        if embedding_vector is not None: embedding_matrix[i] = embedding_vector
+    return X_train, X_dev, X_test, embedding_matrix
 
 def minibatch(inputs, labels, batch_size, shuffle=True, masks=None):
     """ Performs minibatching on set of data. Based off of stack overflow post:
