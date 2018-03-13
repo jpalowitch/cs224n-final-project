@@ -2,13 +2,13 @@
 python rnn_tensorflow.py -embeds stock -dataset toxic -sigmoid
 python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid
 python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid -max_length 100
-python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid -max_length 100 -nepochs 20 -embed_drop 50 
-python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid -max_length 100 -nepochs 20 -embed_drop 50 -hidden_size 128 -weight_reg 3
+python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid -max_length 100 -nepochs 10 -embed_drop 50 
+python rnn_tensorflow.py -embeds stock -dataset toxic -bd -sigmoid -max_length 100 -nepochs 10 -embed_drop 50 -hidden_size 128 -weight_reg 3#
 
 # LSTM runs
 python rnn_tensorflow.py -embeds stock -dataset toxic -cell lstm -sigmoid
 python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid
 python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid -max_length 100
-python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid -max_length 100 -nepochs 20 -embed_drop 50 
-python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid -max_length 100 -nepochs 20 -embed_drop 50 -hidden_size 128 -weight_reg 3
+python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid -max_length 100 -nepochs 10 -embed_drop 50 
+python rnn_tensorflow.py -embeds stock -dataset toxic -bd -cell lstm -sigmoid -max_length 100 -nepochs 10 -embed_drop 50 -hidden_size 128 -weight_reg 3
 
