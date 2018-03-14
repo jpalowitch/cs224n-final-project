@@ -141,11 +141,11 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         # reduce for entire batch
         total_loss = tf.reduce_sum(loss)
 
-        # set optimizer
-        optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
-
         # treating final word vectors as i + j
         combined_embeddings = W_i + W_j
+
+    # set optimizer
+    optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
     # train!
     with tf.Session() as sess:
@@ -427,7 +427,6 @@ def test_gpu():
     sess.close()
 
 if __name__ == "__main__":
-    generate_embeddings_all()
     myargs = getopts(argv)
     print myargs
     if "-bs" in myargs:
@@ -449,7 +448,7 @@ if __name__ == "__main__":
     if "-run" in myargs:
         run_arg = myargs["-run"]
         if run_arg == "all":
-            generate_embeddings(["train", "dev", "test"])
+            generate_embeddings_all()
         elif run_arg == "train":
             generate_embeddings(["train"])
         elif run_arg == "dev":
