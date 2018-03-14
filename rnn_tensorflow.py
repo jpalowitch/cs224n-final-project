@@ -46,7 +46,7 @@ FLAVOR = "tensorflow-ADAM-kerasSeqs"
 
 # Parameters
 max_features = 10000 # Originally 30000
-learning_rate = 0.001
+starter_learning_rate = 0.01
 hidden_size = args.hidden_size
 batch_size = 32
 embed_size = 100
@@ -166,8 +166,13 @@ else:
     ces = tf.nn.softmax_cross_entropy_with_logits_v2(logits=logits, labels=labels)
 cost = tf.reduce_mean(ces) + weight_reg * tf.nn.l2_loss(U)
 
+# Setting learning rate
+global_step = tf.Variable(0, trainable=False)
+learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
+                                           100, 0.99, staircase=True)
 # Optimizer
-optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
+train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)
+optimizer = train_op.minimize(cost, global_step)
 
 # Final scoring
 def calc_auc_tf(X, Y, seq_lens, mean=True):
@@ -197,6 +202,7 @@ y_dev = y_dev
 y_test = y_test
 
 auc_scores = []
+current_lr = starter_learning_rate
 dev_lengths = np.count_nonzero(X_dev, axis=1)
 test_lengths = np.count_nonzero(X_test, axis=1)
 for target_class in range(6):
@@ -235,10 +241,13 @@ for target_class in range(6):
             minibatches = minibatch(X_tra, train_target, batch_size)
             for batch_xs, batch_ys in minibatches:
                 batch_lengths = np.count_nonzero(batch_xs, axis=1)
-                _, c = sess.run([optimizer, cost], feed_dict={
+                _, c, lr = sess.run([optimizer, cost, learning_rate], feed_dict={
                     inputs: batch_xs, 
                     labels: batch_ys, 
                     seq_lengths: batch_lengths})
+                if lr < current_lr:
+                    print("learning rate is now" + str(round(lr, 5)))
+                    current_lr = lr
                 avg_cost += c / total_batch
             
             # Display logs
@@ -269,5 +278,5 @@ for target_class in range(6):
 fields = vars(args)
 fields.pop('gpu')
 dataset = fields.pop('dataset')
-save_rnn_auc_scores(auc_scores, fields, dataset, cnames)
+#save_rnn_auc_scores(auc_scores, fields, dataset, cnames)
 
