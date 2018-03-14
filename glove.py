@@ -14,7 +14,7 @@ Tokenizer = tf.keras.preprocessing.text.Tokenizer
 # Global vars set by command line arguments
 batch_size = 512
 data_sets = ["train"]
-num_epochs = 10
+num_epochs = 2
 embedding_size = 50
 device = "/cpu:0"
 num_words=10000
@@ -33,6 +33,7 @@ def build_coccurrence_matrix(corpus, window_size=10, min_frequency=2):
     """
     print "Building cooccurrence matrix"
     # train tokenizer on corpus
+    print 'corpus shape: {}'.format(np.array(corpus).shape)
     tokenizer = Tokenizer(num_words=num_words)
     tokenizer.fit_on_texts(corpus)
     # print_tokenizer_information(tokenizer, corpus)
@@ -106,12 +107,12 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         # weights for input (i) and context (j) vectors
         # tokens are indexed at 1, so need shape needs to be vocab_size + 1
         with tf.variable_scope(scope):
-            W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
-            W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=tf.contrib.layers.xavier_initializer())
+            W_i = tf.get_variable("W_i", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
+            W_j = tf.get_variable("W_j", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
 
             # each word has a scalar weight for when it is a center or context word
-            B_i = tf.get_variable("input_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer())
-            B_j = tf.get_variable("context_bias", shape=[vocab_size + 1], initializer=tf.constant_initializer())
+            B_i = tf.get_variable("input_bias", initializer=tf.random_uniform([vocab_size + 1], 1.0, -1.0))
+            B_j = tf.get_variable("context_bias", initializer=tf.random_uniform([vocab_size + 1], 1.0, -1.0))
 
         # add placeholders for indices for the input and output words and cooccurrence for (v, u)
         i = tf.placeholder(tf.int32, shape=(batch_size), name="input_batch")
@@ -155,7 +156,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
             idx = 0
             minibatches = get_cooccurrence_batches(cooccurrence_matrix, batch_size)
             for input_batch, context_batch, count_batch in minibatches:
-                if idx % 10000 == 0:
+                if idx % 1000 == 0:
                     print "On iteration: {}".format(idx)
 
                 feed_dict = {
@@ -165,11 +166,14 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
                 }
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
-        embeddings = sess.run(combined_embeddings)
+        embeddings = combined_embeddings.eval()
         sess.close()
     return embeddings
 
-def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=False):
+# def get_all_cooccurrences():
+
+
+def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=True):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
 
     Args:
@@ -182,37 +186,39 @@ def get_cooccurrence_matrices(path="data/cooccurrence.pkl", load_files=False):
     """
     if os.path.isfile(path) and load_files:
         with open(path, "rb") as fp:
-            matrices = pickle.load(fp)
-        return matrices
+            info = pickle.load(fp)
+        return info
     else:
-        train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
+        df = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+        # dev_df = dev[["comment_text"]].values.flatten()
+        # test_df = test[["comment_text"]].values.flatten()
+        matrix, tokenizer = build_coccurrence_matrix(df)
 
-        train_df = train[["comment_text"]].values.flatten()
-        dev_df = dev[["comment_text"]].values.flatten()
-        test_df = test[["comment_text"]].values.flatten()
-
-        train_matrix, train_tokenizer = build_coccurrence_matrix(train_df)
-        dev_matrix, dev_tokenizer = build_coccurrence_matrix(dev_df)
-        test_matrix, test_tokenizer = build_coccurrence_matrix(test_df)
-
-        matrices = {
-            "train": {
-                "matrix": train_matrix,
-                "tokenizer": train_tokenizer
-            },
-            "dev": {
-                "matrix": dev_matrix,
-                "tokenizer": dev_tokenizer
-            },
-            "test": {
-                "matrix": test_matrix,
-                "tokenizer": test_tokenizer
-            }
+        # train_matrix, train_tokenizer = build_coccurrence_matrix(train_df)
+        # dev_matrix, dev_tokenizer = build_coccurrence_matrix(dev_df)
+        # test_matrix, test_tokenizer = build_coccurrence_matrix(test_df)
+        info = {
+            "matrix": matrix,
+            "tokenizer": tokenizer
         }
+        # matrices = {
+        #     "train": {
+        #         "matrix": train_matrix,
+        #         "tokenizer": train_tokenizer
+        #     },
+        #     "dev": {
+        #         "matrix": dev_matrix,
+        #         "tokenizer": dev_tokenizer
+        #     },
+        #     "test": {
+        #         "matrix": test_matrix,
+        #         "tokenizer": test_tokenizer
+        #     }
+        # }
 
         with open(path, "wb") as fp:
-            pickle.dump(matrices, fp)
-        return matrices
+            pickle.dump(info, fp)
+        return info
 
 def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
     """ Generates a minibatch of data from a cooccurence matrix.
@@ -265,6 +271,28 @@ def generate_embeddings(data_sets):
         all_embeddings[ds] = embeddings
 
     return all_embeddings
+
+def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
+    """ Generates embeddings of matrix based off of full vocabulary (no split)
+    """
+    full_path = "data/" + "test_all" + "_" + str(embedding_size) + "_" +  \
+        str(num_words) + "_" + str(num_epochs) + "_" + "ALL" + "_"+ path
+
+    if os.path.isfile(full_path) and load_files:
+        with open(full_path, "rb") as fp:
+            embeddings = pickle.load(fp)
+        return embeddings
+    else:
+        info = get_cooccurrence_matrix()
+        tokenizer = info.get("tokenizer")
+        matrix = info.get("matrix")
+        vocab_size = len(tokenizer.word_index.keys())
+        embeddings = build_graph_and_train(matrix, vocab_size, "test_all")
+        with open(full_path, "wb") as fp:
+            pickle.dump(embeddings, fp)
+        print 'first:'
+        print embeddings[1]
+        return embeddings
 
 def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.pkl", load_files=False):
     """ Fetches the local GloVe embeddings for a single data set
@@ -339,7 +367,7 @@ def test_train():
     """ Tests the cooccurrence matrix with a small dataset
     """
     # Build cooccurrence matrix
-    corpus = ['San Francisco is in California.', 'California is a great place.', 'California is a subpar place.']
+    corpus = get_development_data()
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus, min_frequency=2)
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test")
@@ -399,6 +427,7 @@ def test_gpu():
     sess.close()
 
 if __name__ == "__main__":
+    generate_embeddings_all()
     myargs = getopts(argv)
     print myargs
     if "-bs" in myargs:
