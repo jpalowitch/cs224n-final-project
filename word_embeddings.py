@@ -240,7 +240,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_50_10000_2_embeddings.pkl"):
+def read_local_vectors(path="data/all_50_10000_2_0.05_5_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -250,7 +250,7 @@ def read_local_vectors(path="data/all_50_10000_2_embeddings.pkl"):
         embeddings: GloVe embeddings
     """
     if os.path.isfile(path):
-        print "Reading local embeddings"
+        print "Reading local embeddings: {}".format(path)
         with open(path, "rb") as fp:
             embeddings = pickle.load(fp)
         print "Done"
@@ -260,6 +260,59 @@ def read_local_vectors(path="data/all_50_10000_2_embeddings.pkl"):
         embeddings = generate_embeddings_all()
         print "Done"
         return embeddings
+
+## UTILS
+def compare_words(words, num_words=10000):
+    """ Compares pairs of words using the locally trained vectors as well as
+        to their glove counterparts
+
+    Args:
+        words: List of tuples of (word, word)
+    """
+    # change this if using different local glove embeddings than
+    # "data/all_50_10000_2_embeddings.pkl"
+    if num_words == 100000:
+        path="data/all_50_100000_2_embeddings.pkl"
+    else:
+        path="data/all_50_10000_2_embeddings.pkl"
+
+    # fit tokenizer to corpus
+    df = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+    tokenizer = Tokenizer(num_words=num_words)
+    tokenizer.fit_on_texts(df)
+
+    # fetch GloVe vectors
+    glove_embeddings = get_pretrained_glove_vectors()
+    local_embeddings = read_local_vectors(path=path)
+
+    for (word1, word2) in words:
+        print
+        print 'word1: {} word2: {}'.format(word1, word2)
+        word1_vector = local_embeddings[tokenizer.word_index.get(word1)]
+        word2_vector = local_embeddings[tokenizer.word_index.get(word2)]
+        diff = np.sum(word1_vector) - np.sum(word2_vector)
+        glove_diff =  np.sum(glove_embeddings.get(word1)) - np.sum(glove_embeddings.get(word2))
+        print 'local difference: {}'.format(diff)
+        print 'glove difference: {}'.format(glove_diff)
+        print
+        print '--------GloVe comparison--------'
+        glove_vector = glove_embeddings.get(word1)
+        if glove_vector is not None:
+            glove_diff = np.sum(word1_vector) - np.sum(glove_vector)
+            print 'Word 1 GloVe difference: {}'.format(glove_diff)
+        else:
+            print 'Could not find GloVe vector for {}'.format(word1)
+
+        glove_vector = glove_embeddings.get(word2)
+        if glove_vector is not None:
+            glove_diff = np.sum(word2_vector) - np.sum(glove_vector)
+            print 'Word 2 GloVe difference: {}'.format(glove_diff)
+        else:
+            print 'Could not find GloVe vector for {}'.format(word2)
+
+def test_compare_words(num_words):
+    arr = [("man", "boy"), ("woman", "girl"), ("death", "dead"), ("eat", "ate"), ("you", "i"), ("he", "she"), ("him", "her")]
+    compare_words(arr, num_words=num_words)
 
 def test_data_set_glove_vectors():
     train, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
@@ -299,7 +352,9 @@ if __name__ == "__main__":
     if "-test" in myargs:
         if myargs["-test"] == "matrix":
             test_get_embedding_matrix_and_sequences()
-        if myargs["-test"] == "sentences":
+        elif myargs["-test"] == "sentences":
             test_get_tokenized_sentences_local_embeddings()
-        if myargs["-test"] == "glove":
+        elif myargs["-test"] == "glove":
             test_glove_vectors()
+        elif myargs["-test"] == "words":
+            test_compare_words(10000)

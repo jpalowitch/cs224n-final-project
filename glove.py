@@ -14,12 +14,16 @@ Tokenizer = tf.keras.preprocessing.text.Tokenizer
 # Global vars set by command line arguments
 batch_size = 512
 data_sets = ["train"]
-num_epochs = 2
-embedding_size = 50
+num_epochs = 10
+embedding_size = 100
 device = "/cpu:0"
 num_words=10000
+# default is 0.05 (if unspecified)
+learning_rate = 0.05
+# default is 10 (if unspecified)
+window_size = 5
 
-def build_coccurrence_matrix(corpus, window_size=10, min_frequency=2):
+def build_coccurrence_matrix(corpus, min_frequency=2):
     """ Builds a cooccurrence matrix as a dictionary.
 
     Args:
@@ -97,7 +101,6 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
     """
     # model params
     alpha = 0.75
-    learning_rate = 0.05
 
     # upper bound for words that cooccur frequently
     x_ij_max = 100.0
@@ -170,7 +173,6 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         sess.close()
     return embeddings
 
-
 def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=False):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
 
@@ -240,8 +242,11 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
         embeddings: list of word embeddings
     """
     full_path = "data/" + "all" + "_" + str(embedding_size) + "_" +  \
-        str(num_words) + "_" + str(num_epochs) + "_"+ path
+        str(num_words) + "_" + str(num_epochs) + "_" + str(learning_rate) + \
+        "_" + str(window_size) + "_" + path
 
+    print "path":
+    print full_path
     if os.path.isfile(full_path) and load_files:
         with open(full_path, "rb") as fp:
             embeddings = pickle.load(fp)
@@ -252,36 +257,6 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
         matrix = info.get("matrix")
         vocab_size = len(tokenizer.word_index.keys())
         embeddings = build_graph_and_train(matrix, vocab_size, "test_all")
-        with open(full_path, "wb") as fp:
-            pickle.dump(embeddings, fp)
-        return embeddings
-
-def get_embeddings(cooccurrence_matrix, vocab_size, data_set, path="embeddings.pkl", load_files=False):
-    """ Fetches the local GloVe embeddings for a single data set
-
-    Args:
-        cooccurrence_matrix: dict of form {(center_index, context_index): count}
-        vocab_size: size of vocabulary
-        data_set: one of train, dev, or test
-        path: path for embeddings file
-        load_files: whether to load the files
-
-    Returns:
-        embeddings: embeddings for one dataset
-    """
-    # append hyperparams to path
-    full_path = "data/" + data_set + "_" + str(embedding_size) + "_" +  \
-        str(num_words) + "_" + str(num_epochs) + "_" + path
-    if os.path.isfile(full_path) and load_files:
-        with open(full_path, "rb") as fp:
-            embeddings = pickle.load(fp)
-        return embeddings
-    else:
-        print "Generating new GloVe embeddings for {} data set and hyperparams:".format(data_set)
-        print "vocab size:      {}".format(num_words)
-        print "embedding size:  {}".format(embedding_size)
-        print "epochs:          {}".format(num_epochs)
-        embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, data_set)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
         return embeddings
@@ -305,8 +280,9 @@ def print_tokenizer_information(tokenizer=None, corpus=None):
     """ Prints useful information about the tokenizer.
     """
     if tokenizer is None:
-        corpus = get_development_data()
-        _, tokenizer  = build_coccurrence_matrix(corpus)
+        corpus = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+        tokenizer = Tokenizer()
+        tokenizer.fit_on_texts(corpus)
     print 'word_index'
     print tokenizer.word_index
     print 'word_counts (frequency)'
