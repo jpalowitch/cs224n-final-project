@@ -11,7 +11,8 @@ PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import roc_auc_score
 from scipy.sparse import hstack
-from keras.preprocessing import text, sequence
+text = tf.keras.preprocessing.text
+sequence = tf.keras.preprocessing.sequence
 
 # Constants
 CLASS_NAMES = ['toxic', 'severe_toxic', 'obscene', 'threat', 'insult', \
@@ -259,7 +260,7 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
     return train_vecs, dev_vecs, test_vecs
 
 def get_stock_embeddings(X_train, X_dev, X_test, embed_file=EMBEDDING_FILE, embed_size=100, max_features=10000):
-    """ Gets stock embeddings. Adapted from 
+    """ Gets stock embeddings. Adapted from
     https://www.kaggle.com/prashantkikani/pooled-gru-glove-with-preprocessing
     """
     tokenizer = text.Tokenizer(num_words=max_features)
@@ -268,7 +269,7 @@ def get_stock_embeddings(X_train, X_dev, X_test, embed_file=EMBEDDING_FILE, embe
     X_dev = tokenizer.texts_to_sequences(X_dev)
     X_test = tokenizer.texts_to_sequences(X_test)
 
-    def get_coefs(word, *arr): 
+    def get_coefs(word, *arr):
         return word, np.asarray(arr, dtype='float32')
 
     embeddings_index = dict(get_coefs(*o.strip().split()) for o in open(embed_file))

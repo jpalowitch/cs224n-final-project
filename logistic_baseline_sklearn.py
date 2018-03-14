@@ -6,6 +6,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import roc_auc_score, accuracy_score
 from scipy.sparse import hstack
 from sys import argv
+from word_embeddings import get_tokenized_sentences
 
 APPROACH = "ngram"
 CLASSIFIER = "logistic"
@@ -23,7 +24,7 @@ def fit_logistic_ngram_sklearn(train, dev, test, dataset="toxic",
     Returns:
       average ROC-AUC score over classes.
     """
-    
+
     if dataset == "toxic":
         vecpath = TFIDF_VECTORS_FILE_TOXIC
     elif dataset == "attack":
@@ -31,6 +32,13 @@ def fit_logistic_ngram_sklearn(train, dev, test, dataset="toxic",
 
     train_vecs, dev_vecs, test_vecs = \
         vectorize_corpus_tf_idf(train, dev, test, sparse=True, path=vecpath)
+
+    # Uncomment below lines to run with GloVe vectors. Use use_local=True
+    # to use vectors trained on corpus
+    # sentences = get_tokenized_sentences(use_local=True, load_files=False)
+    # train_vecs = sentences.get("train").get("vectors")
+    # test_vecs = sentences.get("test").get("vectors")
+    # dev_vecs = sentences.get("dev").get("vectors")
 
     # Doing one-vs-all training
     auc_scores = []

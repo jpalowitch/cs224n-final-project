@@ -7,7 +7,7 @@ import pickle
 import tensorflow as tf
 from project_utils import getopts
 from sys import argv
-from glove import generate_embeddings
+from glove import generate_embeddings_all
 
 GLOVE_DIRECTORY = "glove.6B"
 GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
@@ -58,7 +58,7 @@ def vectorize_sentences_concat(df, embeddings):
         masks.append(mask)
     return sentences, masks
 
-def vectorize_sentence_average(tokenizer, pretrained_embeddings, sequences, use_local=False, local_embeddings=None):
+def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequences, use_local=False, local_embeddings=None):
     """ Vectorizes sentences by summing the GloVe representations of each word.
 
     Args:
@@ -71,11 +71,12 @@ def vectorize_sentence_average(tokenizer, pretrained_embeddings, sequences, use_
     """
     print "Vectorizing sentences"
     sentences = []
-    # maps word indices to words so that it can be read from the embeddings matrix
-    word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
     # use command line arg if defined
     if use_local_glove_vectors is not None:
         use_local = use_local_glove_vectors
+
+    if use_local == True:
+        print "Using local GloVe vectors!"
 
     for idx, token_ids in enumerate(sequences):
         if idx % 1000 == 0:
@@ -95,7 +96,7 @@ def vectorize_sentence_average(tokenizer, pretrained_embeddings, sequences, use_
                     added = True
 
         # Only average if valid tokens added to sentence
-        if len(token_ids) > 0 and added:
+        if added:
             vectorized_sentence = np.divide(vectorized_sentence, float(len(token_ids)))
         sentences.append(vectorized_sentence)
     print "Done"
@@ -120,53 +121,41 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
     else:
         train, dev, test = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
         # Create separate tokenizer for each set
-        train_tokenizer = Tokenizer()
-        dev_tokenizer = Tokenizer()
-        test_tokenizer = Tokenizer()
+        tokenizer = Tokenizer()
 
         train_df = train[["comment_text"]].values.flatten()
         dev_df = dev[["comment_text"]].values.flatten()
         test_df = test[["comment_text"]].values.flatten()
 
-        train_tokenizer.fit_on_texts(train_df)
-        dev_tokenizer.fit_on_texts(dev_df)
-        test_tokenizer.fit_on_texts(test_df)
+        tokenizer.fit_on_texts(pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten())
 
-        train_sequences = train_tokenizer.texts_to_sequences(train_df)
-        dev_sequences = dev_tokenizer.texts_to_sequences(dev_df)
-        test_sequences = test_tokenizer.texts_to_sequences(test_df)
+        train_sequences = tokenizer.texts_to_sequences(train_df)
+        dev_sequences = tokenizer.texts_to_sequences(dev_df)
+        test_sequences = tokenizer.texts_to_sequences(test_df)
 
         embeddings = get_pretrained_glove_vectors()
-        local_train_embeddings  = read_local_vectors("train")
-        local_dev_embeddings  = read_local_vectors("dev")
-        local_test_embeddings  = read_local_vectors("test")
-        # train_vectors_concat, train_masks = vectorize_sentences_concat(train_df, embeddings)
-        # dev_vectors_concat, dev_masks = vectorize_sentences_concat(dev_df, embeddings)
-        # test_vectors_concat, test_masks = vectorize_sentences_concat(test_df, embeddings)
+        local_embeddings  = read_local_vectors()
+
+        # maps word indices to words so that it can be read from the embeddings matrix
+        word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
 
         sentence_vectors = {
             "train": {
-                "vectors": vectorize_sentence_average(train_tokenizer, embeddings, train_sequences, \
-                                                        use_local, local_embeddings=local_train_embeddings),
-                # "vectors_concat": train_vectors_concat,
-                # "masks": train_masks,
-                "word_index": train_tokenizer.word_index,
+                "vectors": vectorize_sentence_average(word_index_reverse, embeddings, train_sequences, \
+                                                        use_local=use_local, local_embeddings=local_embeddings),
+                "word_index": tokenizer.word_index,
                 "sequences": train_sequences
             },
             "dev": {
-                "vectors": vectorize_sentence_average(dev_tokenizer, embeddings, dev_sequences, \
-                                                        use_local, local_embeddings=local_dev_embeddings),
-                # "vectors_concat": dev_vectors_concat,
-                # "masks": dev_masks,
-                "word_index": dev_tokenizer.word_index,
+                "vectors": vectorize_sentence_average(word_index_reverse, embeddings, dev_sequences, \
+                                                        use_local=use_local, local_embeddings=local_embeddings),
+                "word_index": tokenizer.word_index,
                 "sequences": dev_sequences
             },
             "test": {
-                "vectors": vectorize_sentence_average(test_tokenizer, embeddings, test_sequences, \
-                                                        use_local, local_embeddings=local_test_embeddings),
-                # "vectors_concat": test_vectors_concat,
-                # "masks": test_masks,
-                "word_index": test_tokenizer.word_index,
+                "vectors": vectorize_sentence_average(word_index_reverse, embeddings, test_sequences, \
+                                                        use_local=use_local, local_embeddings=local_embeddings),
+                "word_index": tokenizer.word_index,
                 "sequences": test_sequences
             }
         }
@@ -229,7 +218,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
         # check whether to look for vectors trained on corpus
         if use_local:
             print "Using locally trained vectors"
-            embedding_matrix = read_local_vectors(data_set)
+            embedding_matrix = read_local_vectors()
 
         else:
             embeddings = get_pretrained_glove_vectors()
@@ -251,7 +240,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(data_set):
+def read_local_vectors(path="data/all_50_10000_2_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -260,25 +249,32 @@ def read_local_vectors(data_set):
     Returns:
         embeddings: GloVe embeddings
     """
-    path = "data/" + data_set + "_" + "embeddings.pkl"
-    print "Reading {} data set".format(data_set)
     if os.path.isfile(path):
+        print "Reading local embeddings"
         with open(path, "rb") as fp:
             embeddings = pickle.load(fp)
         print "Done"
         return embeddings
     else:
-        print "Could not find {} dataset, generating embeddings".format(data_set)
-        embeddings = generate_embeddings([data_set])
+        print "Could not find embeddings, generating new ones"
+        embeddings = generate_embeddings_all()
         print "Done"
         return embeddings
 
-def test_glove_vectors():
+def test_data_set_glove_vectors():
     train, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
     train_df = train[["comment_text"]].values.flatten()
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(train_df)
-    embeddings = read_local_vectors("train")
+    embeddings = read_local_vectors()
+    assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
+    print "GloVe vector dimensions are correct"
+
+def test_glove_vectors():
+    df = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(df)
+    embeddings = read_local_vectors()
     assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
     print "GloVe vector dimensions are correct"
 
@@ -305,3 +301,5 @@ if __name__ == "__main__":
             test_get_embedding_matrix_and_sequences()
         if myargs["-test"] == "sentences":
             test_get_tokenized_sentences_local_embeddings()
+        if myargs["-test"] == "glove":
+            test_glove_vectors()
