@@ -48,7 +48,7 @@ FLAVOR = "tensorflow-ADAM-kerasSeqs"
 
 # Parameters
 max_features = 10000 # Originally 30000
-starter_learning_rate = 0.01 # starter learning rate for adaptive lr
+starter_learning_rate = 0.001 # starter learning rate for adaptive lr
 learning_rate = 0.001 # used if -adapt_lr flag not present
 hidden_size = args.hidden_size
 batch_size = 32
@@ -139,25 +139,43 @@ with tf.device(device):
     if args.bd:
         xs, state = tf.nn.bidirectional_dynamic_rnn(
             cell, cell_bw, x, sequence_length=seq_lengths, dtype=tf.float32)
-        x = tf.concat(xs, axis=2)
+        outputs = tf.concat(xs, axis=2)
     else:
-        x, state = tf.nn.dynamic_rnn(
+        outputs, state = tf.nn.dynamic_rnn(
             cell, x, sequence_length=seq_lengths, dtype=tf.float32)
 
-    xmax = tf.reduce_max(x, axis=1)
-    xmean = tf.reduce_mean(x, axis=1)
-    x = tf.concat([xmax, xmean], axis=1)
+    xmax = tf.reduce_max(outputs, axis=1)
+    xmean = tf.reduce_mean(outputs, axis=1)
+    xpool = tf.concat([xmax, xmean], axis=1)
+    true_hidden_size = (1 + int(args.bd)) * hidden_size
+    pooled_size = 2 * true_hidden_size
+
+    if args.attn:
+        W = tf.get_variable(name="attnW", shape=(true_hidden_size, true_hidden_size),
+                            initializer=tf.contrib.layers.xavier_initializer())
+        def get_attention_output(z):
+            right_side = tf.matmul(z, W) # batch_size x true_hidden_size
+            right_side_broadcast = tf.expand_dims(right_side, 1) # batch_size x 1 x true_hidden_size
+            threeDeeMult = outputs * right_side_broadcast # batch_size x max_length x true_hidden_size
+            alpha_logits = tf.reduce_sum(threeDeeMult, 2) # batch_size x max_length
+            alphas = tf.nn.softmax(alpha_logits) # batch_size x max_length
+            alphas_broadcast = tf.expand_dims(alphas, 2) # batch_size x max_length x 1
+            outputs_weighted = outputs * alphas_broadcast # batch_size x max_length x true_hidden_size
+            return tf.reduce_sum(outputs_weighted, axis=1) # batch_size x true_hidden_size
+        amax = get_attention_output(xmax)
+        amean = get_attention_output(xmean)
+        xpool = tf.concat([xpool, amax, amean], axis=1)
+        pooled_size = 2 * pooled_size
 
     # Define final layer variables
-    final_size = 2 * (1 + int(args.bd)) * hidden_size
-    x = tf.nn.dropout(x, keep_prob=1.0 - dense_dropout, noise_shape=[1, final_size])
-    U = tf.get_variable(name="U", shape=(final_size, nclasses),
+    xpool = tf.nn.dropout(xpool, keep_prob=1.0 - dense_dropout, noise_shape=[1, pooled_size])
+    U = tf.get_variable(name="U", shape=(pooled_size, nclasses),
                         initializer=tf.contrib.layers.xavier_initializer())
     b2 = tf.get_variable(name="b2", shape=(nclasses),
                          initializer=tf.constant_initializer(0.0))
 
     # Making prediction
-    logits = tf.matmul(x, U) + b2
+    logits = tf.matmul(xpool, U) + b2
     if args.sigmoid:
         pred = tf.nn.sigmoid(logits)
     else:
@@ -175,7 +193,7 @@ with tf.device(device):
     if args.adapt_lr:
         global_step = tf.Variable(0, trainable=False)
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                   100, 0.99, staircase=True)
+                                                   500, 0.90, staircase=True)
     else:
         learning_rate = learning_rate #tf.constant(learning_rate)
     # Optimizer
