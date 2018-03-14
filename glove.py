@@ -251,32 +251,11 @@ def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
         j = [pair[1] for pair in pairs]
         yield i, j, X_ij
 
-def generate_embeddings(data_sets):
-    """ Generates GloVe word embeddings for the data set. Wrapper over get_embeddings.
-
-    Args:
-        data_sets: list of data sets where each value is one of train, dev, or
-                   test
-    Returns:
-        all_embeddings: dict of embeddings for data sets
-    """
-    matrices = get_cooccurrence_matrices()
-    all_embeddings = {}
-    for ds in data_sets:
-        tokenizer = matrices.get(ds).get("tokenizer")
-        matrix = matrices.get(ds).get("matrix")
-        vocab_length = len(tokenizer.word_index.keys())
-        # get_embeddings saves the embedding in /data
-        embeddings = get_embeddings(matrix, vocab_length, ds)
-        all_embeddings[ds] = embeddings
-
-    return all_embeddings
-
 def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
     """ Generates embeddings of matrix based off of full vocabulary (no split)
     """
-    full_path = "data/" + "test_all" + "_" + str(embedding_size) + "_" +  \
-        str(num_words) + "_" + str(num_epochs) + "_" + "ALL" + "_"+ path
+    full_path = "data/" + "all" + "_" + str(embedding_size) + "_" +  \
+        str(num_words) + "_" + str(num_epochs) + "_"+ path
 
     if os.path.isfile(full_path) and load_files:
         with open(full_path, "rb") as fp:
@@ -359,9 +338,10 @@ def print_tokenizer_information(tokenizer=None, corpus=None):
 def test_build_coccurrence_matrix():
     """ Tests the model with an arbitrary data set
     """
-    corpus = ['San Francisco is in California.', 'California is a great place.', 'California is a subpar place.']
-    cooccur = build_coccurrence_matrix(corpus, min_frequency=2)
-    print cooccur
+    corpus = get_development_data()
+    cooccur, tokenizer = build_coccurrence_matrix(corpus, min_frequency=2)
+    print_tokenizer_information(tokenizer, corpus)
+    # print cooccur
 
 def test_train():
     """ Tests the cooccurrence matrix with a small dataset
@@ -372,7 +352,7 @@ def test_train():
     vocab_size = len(tokenizer.word_index.keys())
     embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test")
     print "Final embeddings:"
-    print embeddings
+    print embeddings[1]
 
 def test_glove_model(scope):
     """Tests the model using the first fifteen elements in the training data sets
@@ -449,12 +429,6 @@ if __name__ == "__main__":
         run_arg = myargs["-run"]
         if run_arg == "all":
             generate_embeddings_all()
-        elif run_arg == "train":
-            generate_embeddings(["train"])
-        elif run_arg == "dev":
-            generate_embeddings(["dev"])
-        elif run_arg == "test":
-            generate_embeddings(["test"])
 
     if "-test" in myargs:
         if myargs["-test"] == "glove":

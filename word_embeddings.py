@@ -7,7 +7,7 @@ import pickle
 import tensorflow as tf
 from project_utils import getopts
 from sys import argv
-from glove import generate_embeddings
+from glove import generate_embeddings_all
 
 GLOVE_DIRECTORY = "glove.6B"
 GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
@@ -240,7 +240,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/test_all_50_10000_2_ALL_embeddings.pkl"):
+def read_local_vectors(path="data/all_50_10000_2_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
