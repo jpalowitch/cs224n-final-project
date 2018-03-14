@@ -11,7 +11,6 @@ PUNCTUATION = [punctuation[i:i+1] for i in range(0, len(punctuation), 1)]
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import roc_auc_score
 from scipy.sparse import hstack
-# from keras.preprocessing import text, sequence
 text = tf.keras.preprocessing.text
 sequence = tf.keras.preprocessing.sequence
 

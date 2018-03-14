@@ -30,15 +30,15 @@ def fit_logistic_ngram_sklearn(train, dev, test, dataset="toxic",
     elif dataset == "attack":
         vecpath = TFIDF_VECTORS_FILE_AGG
 
-    # train_vecs, dev_vecs, test_vecs = \
-    #     vectorize_corpus_tf_idf(train, dev, test, sparse=True, path=vecpath)
+    train_vecs, dev_vecs, test_vecs = \
+        vectorize_corpus_tf_idf(train, dev, test, sparse=True, path=vecpath)
 
     # Uncomment below lines to run with GloVe vectors. Use use_local=True
     # to use vectors trained on corpus
-    sentences = get_tokenized_sentences(use_local=True, load_files=False)
-    train_vecs = sentences.get("train").get("vectors")
-    test_vecs = sentences.get("test").get("vectors")
-    dev_vecs = sentences.get("dev").get("vectors")
+    # sentences = get_tokenized_sentences(use_local=True, load_files=False)
+    # train_vecs = sentences.get("train").get("vectors")
+    # test_vecs = sentences.get("test").get("vectors")
+    # dev_vecs = sentences.get("dev").get("vectors")
 
     # Doing one-vs-all training
     auc_scores = []
