@@ -8,13 +8,8 @@ from sys import argv
 from tensorflow.python.ops import init_ops
 from word_embeddings import *
 
-from keras.models import Model
-from keras.layers import Input, Dense, Embedding, SpatialDropout1D, concatenate
-from keras.layers import GRU, Bidirectional, GlobalAveragePooling1D, GlobalMaxPooling1D
-from keras.layers import dot, add, multiply, Lambda # need for attention
 from keras.preprocessing import text, sequence
 from keras.callbacks import Callback
-from keras import backend as K
 
 import os
 import pandas as pd
@@ -65,6 +60,7 @@ embed_dropout = args.embed_drop / 100.0
 weight_reg = 10.0**(-args.weight_reg) * int(args.weight_reg > 0)
 training_epochs = args.nepochs
 
+
 with tf.device(device):
 
     # Preparing data
@@ -98,7 +94,7 @@ with tf.device(device):
     # Getting embeddings
     if args.embeds == 'stock':
         FLAVOR = FLAVOR + 'stockEmbeds'
-        EMBEDDING_FILE = 'glove.6B/glove.6B.100d.txt' # Originally 300d
+        EMBEDDING_FILE = 'data/glove.6B.100d.txt' # Originally 300d
         # Getting embeddings
         X_train, X_dev, X_test, embedding_matrix = get_stock_embeddings(
             X_train, X_dev, X_test,
@@ -180,9 +176,14 @@ with tf.device(device):
         global_step = tf.Variable(0, trainable=False)
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
                                                    100, 0.99, staircase=True)
+    else:
+        learning_rate = learning_rate #tf.constant(learning_rate)
     # Optimizer
     train_op = tf.train.AdamOptimizer(learning_rate=learning_rate)
-    optimizer = train_op.minimize(cost, global_step)
+    if args.adapt_lr:
+        optimizer = train_op.minimize(cost, global_step)
+    else:
+        optimizer = train_op.minimize(cost)
 
     # Final scoring
     def calc_auc_tf(X, Y, seq_lens, mean=True):
@@ -191,10 +192,6 @@ with tf.device(device):
         else:
             return calc_auc(Y[:, 1], pred.eval({inputs: X, seq_lengths: seq_lens})[:, 1])
 
-
-    # Making weight saving functionality
-    saver = tf.train.Saver()
-
     # Initialize the variables (i.e. assign their default value)
     global_init = tf.global_variables_initializer()
 
@@ -202,6 +199,9 @@ with tf.device(device):
         print("training on all classes simultaneously")
     else:
         print("training on 6 classes")
+
+    # Making weight saving functionality
+    #saver = tf.train.Saver()
 
     # Preparing training
     X_tra = x_train
@@ -233,9 +233,10 @@ with tf.device(device):
 
         # Start training
         max_auc = 0
-        with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
+        with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
         
             # Run initializer
+            saver = tf.train.Saver()
             sess.run(global_init)
             
             # Training 
@@ -247,13 +248,10 @@ with tf.device(device):
                 minibatches = minibatch(X_tra, train_target, batch_size)
                 for batch_xs, batch_ys in minibatches:
                     batch_lengths = np.count_nonzero(batch_xs, axis=1)
-                    _, c, lr = sess.run([optimizer, cost, learning_rate], feed_dict={
+                    _, c = sess.run([optimizer, cost], feed_dict={
                         inputs: batch_xs, 
                         labels: batch_ys, 
                         seq_lengths: batch_lengths})
-                    #if lr < current_lr:
-                        #print("learning rate is now" + str(round(lr, 5)))
-                        #current_lr = lr
                     avg_cost += c / total_batch
                 
                 # Display logs

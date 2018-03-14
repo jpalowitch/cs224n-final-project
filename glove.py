@@ -170,7 +170,8 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         sess.close()
     return embeddings
 
-def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=True):
+
+def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=False):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
 
     Args:
