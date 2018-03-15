@@ -7,14 +7,12 @@ import pickle
 import tensorflow as tf
 from project_utils import getopts
 from sys import argv
-from glove import generate_embeddings_all
+from glove import generate_embeddings_all, get_pretrained_glove_vectors, embedding_size
 
-GLOVE_DIRECTORY = "glove.6B"
-GLOVE_EMBEDDINGS = "data/glove.6B.embeddings.pkl"
-EMBEDDING_DIM = 50
+EMBEDDING_DIM = embedding_size
 TRAIN_DATA_FILE = "train.csv"
 MAX_SENTENCE_LENGTH = 50
-N_DIMENSIONS = 50
+N_DIMENSIONS = embedding_size
 UNK_TOKEN = np.zeros(N_DIMENSIONS)
 use_local_glove_vectors = None
 # Link for GloVe vectors: https://nlp.stanford.edu/projects/glove/
@@ -79,7 +77,7 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
         print "Using local GloVe vectors!"
 
     for idx, token_ids in enumerate(sequences):
-        if idx % 1000 == 0:
+        if idx % 3000 == 0:
             print "On line: {}".format(idx)
         vectorized_sentence = np.zeros((N_DIMENSIONS,))
         added = False
@@ -164,33 +162,6 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
             pickle.dump(sentence_vectors, fp)
         return sentence_vectors
 
-def get_pretrained_glove_vectors(path=GLOVE_EMBEDDINGS, load_files=True):
-    """ Fetches GloVe word embeddings.
-
-    Args:
-        path: file path for saving the word embeddings
-        load_files: whether to load the files
-    Returns:
-        embeddings_index: the word embeddings
-    """
-    if os.path.isfile(path) and load_files:
-        with open(path, "rb") as fp:
-            embeddings_index = pickle.load(fp)
-        return embeddings_index
-    else:
-        embeddings_index = {}
-        glove_vectors = open(os.path.join(GLOVE_DIRECTORY, "glove.6B.100d.txt"))
-        # glove_vectors = open("data/glove.42B.300d.txt", "rb")
-        for line in glove_vectors:
-            values = line.split()
-            word = values[0]
-            coefficients = np.asarray(values[1:], dtype="float32")
-            embeddings_index[word] = coefficients
-        glove_vectors.close()
-        with open(path, "wb") as fp:
-            pickle.dump(embeddings_index, fp)
-        return embeddings_index
-
 def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=True):
     """ Creates embedding matrix for data set and returns embedding matrix and
         an ordered list of word index sequences.
@@ -240,7 +211,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_50_10000_2_0.05_5_embeddings.pkl"):
+def read_local_vectors(path="data/all_50_10000_2_0.05_10_True_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:

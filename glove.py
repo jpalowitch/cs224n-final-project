@@ -11,17 +11,23 @@ from sys import argv
 # use tensorflow hosted version of Tokenizer
 Tokenizer = tf.keras.preprocessing.text.Tokenizer
 
+glove_directory = "glove.6B"
+glove_embeddings_path = "data/glove.6B.embeddings.pkl"
+
 # Global vars set by command line arguments
 batch_size = 512
-data_sets = ["train"]
-num_epochs = 10
-embedding_size = 100
+num_epochs = 2
+# default is 50 (if unspecified)
+embedding_size = 50
 device = "/cpu:0"
+# detault is 100000 (if unspecified)
 num_words=10000
 # default is 0.05 (if unspecified)
 learning_rate = 0.05
 # default is 10 (if unspecified)
-window_size = 5
+window_size = 10
+# controls whether to initialize vectors with pretrained GloVe embeddings
+initialize_with_pretrained = True
 
 def build_coccurrence_matrix(corpus, min_frequency=2):
     """ Builds a cooccurrence matrix as a dictionary.
@@ -87,7 +93,7 @@ def build_coccurrence_matrix(corpus, min_frequency=2):
         return cooccurrence_matrix_unfiltered, tokenizer
 
 
-def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
+def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
     """ Builds and trains a tensorflow model for creating GloVe vectors based off
         of a cooccurrence_matrix.
 
@@ -95,6 +101,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
         cooccurrence_matrix: dictionary of form {(input_word_index, context_word_index) : count}
         vocab_size: size of vocabulary
         scope: variable scope for tensors
+        tokenizer: the tokenizer for the vocabulary
 
     Returns:
         embeddings: (vocab_size x embedding_size) shape matrix of word vectors
@@ -106,13 +113,15 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope):
     x_ij_max = 100.0
 
     with tf.device(device):
-        # variables
-        # weights for input (i) and context (j) vectors
-        # tokens are indexed at 1, so need shape needs to be vocab_size + 1
         with tf.variable_scope(scope):
-            W_i = tf.get_variable("W_i", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
-            W_j = tf.get_variable("W_j", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
-
+            # weights for input (i) and context (j) vectors
+            # tokens are indexed at 1, so need shape needs to be vocab_size + 1
+            if initialize_with_pretrained:
+                W_i = tf.get_variable("W_i", shape=[vocab_size + 1, embedding_size], initializer=glove_pretrained_initializer(vocab_size, embedding_size, tokenizer))
+                W_j = tf.get_variable("W_j", shape=[vocab_size + 1, embedding_size], initializer=glove_pretrained_initializer(vocab_size, embedding_size, tokenizer))
+            else:
+                W_i = tf.get_variable("W_i", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
+                W_j = tf.get_variable("W_j", initializer=tf.random_uniform([vocab_size + 1, embedding_size], 1.0, -1.0))
             # each word has a scalar weight for when it is a center or context word
             B_i = tf.get_variable("input_bias", initializer=tf.random_uniform([vocab_size + 1], 1.0, -1.0))
             B_j = tf.get_variable("context_bias", initializer=tf.random_uniform([vocab_size + 1], 1.0, -1.0))
@@ -243,9 +252,9 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
     """
     full_path = "data/" + "all" + "_" + str(embedding_size) + "_" +  \
         str(num_words) + "_" + str(num_epochs) + "_" + str(learning_rate) + \
-        "_" + str(window_size) + "_" + path
+        "_" + str(window_size) + "_" + str(initialize_with_pretrained) + "_" + path
 
-    print "path":
+    print "path:"
     print full_path
     if os.path.isfile(full_path) and load_files:
         with open(full_path, "rb") as fp:
@@ -256,10 +265,83 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
         tokenizer = info.get("tokenizer")
         matrix = info.get("matrix")
         vocab_size = len(tokenizer.word_index.keys())
-        embeddings = build_graph_and_train(matrix, vocab_size, "test_all")
+        embeddings = build_graph_and_train(matrix, vocab_size, "test_all", tokenizer)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
         return embeddings
+
+def glove_pretrained_initializer(vocab_size, embedding_size, tokenizer, \
+                                 load_files=True, path="pretrained_initializer.pkl"):
+    """ Creates a word embeddings matrix initialized with pretrained GloVe
+        vectors
+
+    Args:
+        vocab_size: size of the vocabulary
+        embedding_size: size of each word embedding
+        tokenizer: tokenizer that holds information about the vocabulary
+        load_files: whether to load a previously initialized matrix
+        path: end of the path for the saved file
+
+    Returns:
+        init: a tensor of shape (vocab_size + 1, embedding_size) that is
+              initialized with GloVe pretrained vectors
+    """
+    full_path = "data/" + str(embedding_size) + "_" + path
+    if os.path.isfile(full_path) and load_files:
+        print "Reading GloVe pretrained initializer"
+        with open(full_path, "rb") as fp:
+            init = pickle.load(fp)
+        print "Done"
+        return init
+    else:
+        print "Generating GloVe pretrained initializer"
+        glove_vectors = get_pretrained_glove_vectors()
+
+        # initialize embeddings randomly
+        W =  np.random.uniform(low=-1.0, high=1.0, size=(vocab_size + 1, embedding_size))
+
+        for word, idx in tokenizer.word_index.items():
+            glove_embedding = glove_vectors.get(word)
+            if glove_embedding is not None:
+                W[idx] = glove_embedding
+
+        # convert to tensor
+        init = tf.constant_initializer(W)
+
+        # save results
+        with open(full_path, "wb") as fp:
+            pickle.dump(init, fp)
+        return init
+
+def get_pretrained_glove_vectors(path=glove_embeddings_path, load_files=False):
+    """ Fetches GloVe word embeddings.
+
+    Args:
+        path: file path for saving the word embeddings
+        load_files: whether to load the files
+    Returns:
+        embeddings_index: the word embeddings
+    """
+    if os.path.isfile(path) and load_files:
+        with open(path, "rb") as fp:
+            embeddings_index = pickle.load(fp)
+        return embeddings_index
+    else:
+        embeddings_index = {}
+        if embedding_size == 100:
+            glove_vectors = open(os.path.join(glove_directory, "glove.6B.100d.txt"))
+        else:
+            glove_vectors = open(os.path.join(glove_directory, "glove.6B.50d.txt"))
+        # glove_vectors = open("data/glove.42B.300d.txt", "rb")
+        for line in glove_vectors:
+            values = line.split()
+            word = values[0]
+            coefficients = np.asarray(values[1:], dtype="float32")
+            embeddings_index[word] = coefficients
+        glove_vectors.close()
+        with open(path, "wb") as fp:
+            pickle.dump(embeddings_index, fp)
+        return embeddings_index
 
 ###### UTILS
 def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
@@ -309,7 +391,7 @@ def test_train():
     corpus = get_development_data()
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus, min_frequency=2)
     vocab_size = len(tokenizer.word_index.keys())
-    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test")
+    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, "dev_test", tokenizer)
     print "Final embeddings:"
     print embeddings[1]
 
@@ -319,7 +401,7 @@ def test_glove_model(scope):
     corpus = get_development_data()
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
     vocab_size = len(tokenizer.word_index.keys())
-    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, scope)
+    embeddings = build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer)
     print "Final embeddings shape {}:".format(np.array(embeddings).shape)
     print embeddings[0]
 
@@ -383,6 +465,9 @@ if __name__ == "__main__":
 
     if "-nm" in myargs:
         num_words = int(myargs["-nm"])
+
+    if "-pt" in myargs:
+        initialize_with_pretrained = True
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
