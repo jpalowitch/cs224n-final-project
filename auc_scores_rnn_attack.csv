@@ -1,0 +1,9 @@
+,adapt_lr,aggression,attack,attn,bd,cell,dense_drop,embed_drop,embeds,hidden_size,max_length,nepochs,sigmoid,weight_reg
+6,True,0.95890994323793,0.9658121115913424,False,False,gru,0,0,stock,80,100,5,True,0
+6,True,0.958832196965178,0.9665936618218132,False,False,lstm,0,0,stock,80,100,5,True,0
+6,True,0.9602687797348012,0.9672495730645296,False,True,gru,0,0,stock,80,100,5,True,0
+6,True,0.9604964510450348,0.9672458751982516,False,True,lstm,0,0,stock,80,100,5,True,0
+6,True,0.9586107808164884,0.9662857215651774,True,False,gru,0,0,stock,80,100,5,True,0
+7,True,0.9590638036419455,0.9659540282679762,True,False,lstm,0,0,stock,80,100,5,True,0
+7,True,0.9602179099442324,0.9669834682376288,True,True,gru,0,0,stock,80,100,5,True,0
+8,True,0.9610733509240076,0.9671827195347128,True,True,lstm,0,0,stock,80,100,5,True,0

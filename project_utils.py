@@ -259,7 +259,9 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
         test_vecs = test_vecs.toarray()
     return train_vecs, dev_vecs, test_vecs
 
-def get_stock_embeddings(X_train, X_dev, X_test, embed_file=EMBEDDING_FILE, embed_size=100, max_features=10000):
+def get_stock_embeddings(X_train, X_dev, X_test, 
+    embed_file=EMBEDDING_FILE, embed_size=100, max_features=10000,
+    return_tokenizer=False):
     """ Gets stock embeddings. Adapted from
     https://www.kaggle.com/prashantkikani/pooled-gru-glove-with-preprocessing
     """
@@ -284,8 +286,10 @@ def get_stock_embeddings(X_train, X_dev, X_test, embed_file=EMBEDDING_FILE, embe
         if i >= max_features: continue
         embedding_vector = embeddings_index.get(word)
         if embedding_vector is not None: embedding_matrix[i] = embedding_vector
-    return X_train, X_dev, X_test, embedding_matrix
-
+    if return_tokenizer:
+        return X_train, X_dev, X_test, embedding_matrix, tokenizer
+    else:
+        return X_train, X_dev, X_test, embedding_matrix
 def minibatch(inputs, labels, batch_size, shuffle=True, masks=None):
     """ Performs minibatching on set of data. Based off of stack overflow post:
     https://stackoverflow.com/questions/38157972/how-to-implement-mini-batch-gradient-descent-in-python
@@ -316,11 +320,13 @@ def saver_fn(approach, classifier, flavor, class_name='all'):
     return './%s/%s_%s_%s_class=%s.weights' % (SESS_SAVE_DIRECTORY, \
         approach, classifier, flavor, class_name)
 
-def saver_fn_rnn(fields, class_name='all'):
+def saver_fn_rnn(fields, class_name='all', stem=False):
     fkeys = [str(x) for x in list(fields.keys())]
     fvals = [str(x) for x in list(fields.values())]
     ids = [a + '-' + b for a, b in zip(fkeys, fvals)]
-    fn = './sess_saves/' + '_'.join(ids) + '_' + class_name + '.weights'
+    fn = '_'.join(ids) + '_' + class_name
+    if not stem:
+        fn = './sess_saves/' + fn + '.weights'
     return fn
 
 def getopts(argv):
