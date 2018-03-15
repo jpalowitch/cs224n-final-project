@@ -428,3 +428,26 @@ def get_and_save_talk_data():
                   'aggression': agg_labels.values}
     comments_df = pd.DataFrame(comments_d)
     comments_df.to_csv(ATTACK_AGGRESSION_FN)
+
+
+def get_unique_cell(text):
+    l = list(text)
+    unique_cell = set(unique for charlist in l for unique in charlist.split(','))
+    return unique_cell
+
+
+def unique_chars(data):
+    """
+    Args: pandas dataframe
+    returns set of unique characters from all comments in dataset
+    """
+    data['unique_chars'] = data['comment_text'].apply(get_unique_cell)
+    unique_chars = Set()
+    new_chars = Set()
+    for i, row in data.iterrows():
+        new_chars.update(data['unique_chars'][i])
+        difference = new_chars.difference(unique_chars)
+        unique_chars.update(difference)
+        if i % 1000:
+            print ('progress', unique_chars)
+            print ('len: ', len(unique_chars))
