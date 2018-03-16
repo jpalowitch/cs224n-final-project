@@ -163,7 +163,7 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
             pickle.dump(sentence_vectors, fp)
         return sentence_vectors
 
-def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=True):
+def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=False):
     """ Creates embedding matrix for data set and returns embedding matrix and
         an ordered list of word index sequences.
 
@@ -199,7 +199,6 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             for word, idx in sentence_vectors.get("word_index").items():
                 embedding_vector = embeddings.get(word)
                 if embedding_vector is not None:
-                    embedding_vector = embeddings.get(word)
                     embedding_matrix[idx] = embedding_vector
 
         # get sequences and save
@@ -212,7 +211,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_100_10000_15_0.05_5_embeddings.pkl"):
+def read_local_vectors(path="data/all_100_10000_25_0.05_5_True_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -255,11 +254,8 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
 
     # train on top 2000 most occurring words - rank == index for the tokenizer
     vectors = embeddings[:threshold]
-
     # generate tsne
-    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=30).fit_transform(vectors)
-    print "Old shape: {} new shape: {}".format(np.array(vectors).shape, X_embedded.shape)
-
+    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=20, init="pca").fit_transform(vectors)
     # Only plot words interested in
     x_chosen = []
     y_chosen = []
