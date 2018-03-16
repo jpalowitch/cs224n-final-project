@@ -277,7 +277,7 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
     plt.show()
 
 def test_plot():
-    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole", "penis", "dick", "bitch", "the", "a"]
+    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole", "the", "a"]
     generate_local_tsne(words=words)
 
 def compare_words(words, num_words=10000, embedding_size=100):
