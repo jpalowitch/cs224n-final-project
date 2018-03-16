@@ -8,6 +8,7 @@ import tensorflow as tf
 from project_utils import getopts
 from sys import argv
 from glove import generate_embeddings_all, get_pretrained_glove_vectors, embedding_size
+from scipy.spatial.distance import cosine
 
 EMBEDDING_DIM = embedding_size
 TRAIN_DATA_FILE = "train.csv"
@@ -211,7 +212,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_50_10000_2_0.05_10_True_embeddings.pkl"):
+def read_local_vectors(path="data/all_100_10000_35_0.05_5_False_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -233,7 +234,7 @@ def read_local_vectors(path="data/all_50_10000_2_0.05_10_True_embeddings.pkl"):
         return embeddings
 
 ## UTILS
-def compare_words(words, num_words=10000):
+def compare_words(words, num_words=10000, embedding_size=100):
     """ Compares pairs of words using the locally trained vectors as well as
         to their glove counterparts
 
@@ -242,8 +243,8 @@ def compare_words(words, num_words=10000):
     """
     # change this if using different local glove embeddings than
     # "data/all_50_10000_2_embeddings.pkl"
-    if num_words == 100000:
-        path="data/all_50_100000_2_embeddings.pkl"
+    if embedding_size == 100:
+        path="data/all_100_10000_15_0.05_5_embeddings.pkl"
     else:
         path="data/all_50_10000_2_embeddings.pkl"
 
@@ -261,22 +262,22 @@ def compare_words(words, num_words=10000):
         print 'word1: {} word2: {}'.format(word1, word2)
         word1_vector = local_embeddings[tokenizer.word_index.get(word1)]
         word2_vector = local_embeddings[tokenizer.word_index.get(word2)]
-        diff = np.sum(word1_vector) - np.sum(word2_vector)
-        glove_diff =  np.sum(glove_embeddings.get(word1)) - np.sum(glove_embeddings.get(word2))
+        diff = cosine(word1_vector, word2_vector)
+        glove_diff = cosine(glove_embeddings.get(word1), glove_embeddings.get(word2))
         print 'local difference: {}'.format(diff)
         print 'glove difference: {}'.format(glove_diff)
         print
         print '--------GloVe comparison--------'
         glove_vector = glove_embeddings.get(word1)
         if glove_vector is not None:
-            glove_diff = np.sum(word1_vector) - np.sum(glove_vector)
+            glove_diff = cosine(word1_vector, glove_vector)
             print 'Word 1 GloVe difference: {}'.format(glove_diff)
         else:
             print 'Could not find GloVe vector for {}'.format(word1)
 
         glove_vector = glove_embeddings.get(word2)
         if glove_vector is not None:
-            glove_diff = np.sum(word2_vector) - np.sum(glove_vector)
+            glove_diff = cosine(word2_vector, glove_vector)
             print 'Word 2 GloVe difference: {}'.format(glove_diff)
         else:
             print 'Could not find GloVe vector for {}'.format(word2)
@@ -328,4 +329,4 @@ if __name__ == "__main__":
         elif myargs["-test"] == "glove":
             test_glove_vectors()
         elif myargs["-test"] == "words":
-            test_compare_words(10000)
+            test_compare_words(100000)

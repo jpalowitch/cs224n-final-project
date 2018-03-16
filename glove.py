@@ -18,7 +18,7 @@ glove_embeddings_path = "data/glove.6B.embeddings.pkl"
 batch_size = 512
 num_epochs = 2
 # default is 50 (if unspecified)
-embedding_size = 50
+embedding_size = 100
 device = "/cpu:0"
 # detault is 100000 (if unspecified)
 num_words=10000
@@ -182,7 +182,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
         sess.close()
     return embeddings
 
-def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=False):
+def get_cooccurrence_matrix(path="data/cooccurrence.pkl", load_files=True):
     """ Builds and retuns the cooccurrence matrices for the train, dev, and test sets
 
     Args:
@@ -467,7 +467,10 @@ if __name__ == "__main__":
         num_words = int(myargs["-nm"])
 
     if "-pt" in myargs:
-        initialize_with_pretrained = True
+        initialize_with_pretrained = bool(myargs["-nm"])
+
+    if "-wn" in myargs:
+        window_size = str(myargs["-wn"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
