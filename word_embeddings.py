@@ -234,12 +234,13 @@ def read_local_vectors(path="data/all_100_10000_15_0.05_5_embeddings.pkl"):
         return embeddings
 
 ## UTILS
-def generate_local_tsne(words=None, corpus=None):
+def generate_local_tsne(words=None, corpus=None, threshold=2000):
     """ Generates a scatter plot of the locally trained word vectors
 
     Args:
         words: list of words to visualize in the plot
         corpus: corpus to use for the visualization
+        threshold: top words to include
     """
     from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
@@ -249,46 +250,39 @@ def generate_local_tsne(words=None, corpus=None):
 
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(corpus)
+    word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
     embeddings = read_local_vectors()
 
-    # contains the vectors to visualize
-    vectors = []
-
-    # words that are used in the visualization
-    labels = []
-    if words is not None:
-        for word in words:
-            word_idx = tokenizer.word_index.get(word)
-            if word_idx == None:
-                print "Word not in corpus: {}".format(word)
-            else:
-                labels.append(word)
-                vectors.append(embeddings[word_idx])
-    else:
-        # maps word indices to words so that it can be read from the embeddings matrix
-        word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
-        vectors = embeddings
-        for i in range(1, 1000):
-            print 'word: {}'.format(word_index_reverse.get(i))
-            labels.append(word_index_reverse.get(i))
+    # train on top 2000 most occurring words - rank == index for the tokenizer
+    vectors = embeddings[:threshold]
 
     # generate tsne
-    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=80).fit_transform(vectors)
+    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=30).fit_transform(vectors)
     print "Old shape: {} new shape: {}".format(np.array(vectors).shape, X_embedded.shape)
 
-    # convert to df and plot
-    df = pd.DataFrame(X_embedded)
-    x = df.ix[:, 0]
-    y = df.ix[:, 1]
-    plt.scatter(x, y)
+    # Only plot words interested in
+    x_chosen = []
+    y_chosen = []
+    labels_chosen = []
+    for word in words:
+        word_idx = tokenizer.word_index.get(word)
+        if word_idx >= threshold:
+            print "Word not in top {} words: {}".format(threshold, word)
+        else:
+            row = X_embedded[word_idx]
+            x_chosen.append(row[0])
+            y_chosen.append(row[1])
+            labels_chosen.append(word)
 
-    for i in range(len(x)):
-        plt.annotate(labels[i], (x[i], y[i]))
+    plt.scatter(x_chosen, y_chosen)
+
+    for i in range(len(labels_chosen)):
+        plt.annotate(labels_chosen[i], (x_chosen[i], y_chosen[i]))
     plt.show()
 
 def test_plot():
-    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole"]
-    generate_local_tsne()
+    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole", "penis", "dick", "bitch", "the", "a"]
+    generate_local_tsne(words=words)
 
 def compare_words(words, num_words=10000, embedding_size=100):
     """ Compares pairs of words using the locally trained vectors as well as
