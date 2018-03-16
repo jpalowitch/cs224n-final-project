@@ -212,7 +212,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_100_10000_35_0.05_5_False_embeddings.pkl"):
+def read_local_vectors(path="data/all_100_10000_15_0.05_5_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -228,12 +228,68 @@ def read_local_vectors(path="data/all_100_10000_35_0.05_5_False_embeddings.pkl")
         print "Done"
         return embeddings
     else:
-        print "Could not find embeddings, generating new ones"
+        print "Could not find embeddings with path {}, generating new ones".format(path)
         embeddings = generate_embeddings_all()
         print "Done"
         return embeddings
 
 ## UTILS
+def generate_local_tsne(words=None, corpus=None):
+    """ Generates a scatter plot of the locally trained word vectors
+
+    Args:
+        words: list of words to visualize in the plot
+        corpus: corpus to use for the visualization
+    """
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+
+    if corpus is None:
+        corpus = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(corpus)
+    embeddings = read_local_vectors()
+
+    # contains the vectors to visualize
+    vectors = []
+
+    # words that are used in the visualization
+    labels = []
+    if words is not None:
+        for word in words:
+            word_idx = tokenizer.word_index.get(word)
+            if word_idx == None:
+                print "Word not in corpus: {}".format(word)
+            else:
+                labels.append(word)
+                vectors.append(embeddings[word_idx])
+    else:
+        # maps word indices to words so that it can be read from the embeddings matrix
+        word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
+        vectors = embeddings
+        for i in range(1, 1000):
+            print 'word: {}'.format(word_index_reverse.get(i))
+            labels.append(word_index_reverse.get(i))
+
+    # generate tsne
+    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=80).fit_transform(vectors)
+    print "Old shape: {} new shape: {}".format(np.array(vectors).shape, X_embedded.shape)
+
+    # convert to df and plot
+    df = pd.DataFrame(X_embedded)
+    x = df.ix[:, 0]
+    y = df.ix[:, 1]
+    plt.scatter(x, y)
+
+    for i in range(len(x)):
+        plt.annotate(labels[i], (x[i], y[i]))
+    plt.show()
+
+def test_plot():
+    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole"]
+    generate_local_tsne()
+
 def compare_words(words, num_words=10000, embedding_size=100):
     """ Compares pairs of words using the locally trained vectors as well as
         to their glove counterparts
@@ -330,3 +386,5 @@ if __name__ == "__main__":
             test_glove_vectors()
         elif myargs["-test"] == "words":
             test_compare_words(100000)
+        elif myargs["-test"] == "plot":
+            test_plot()
