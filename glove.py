@@ -178,6 +178,13 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
                 }
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
+            # save partially trained embedddings
+            partial_embeddings = combined_embeddings.eval()
+            full_path = "data/" + "partial_all" + "_" + str(embedding_size) + "_" +  \
+                str(num_words) + "_" + str(epochs) + "_" + str(learning_rate) + \
+                "_" + str(window_size) + "_" + str(initialize_with_pretrained) + "_" + path
+            with open(full_path, "wb") as fp:
+                pickle.dump(embeddings, fp)
         embeddings = combined_embeddings.eval()
         sess.close()
     return embeddings
@@ -467,10 +474,10 @@ if __name__ == "__main__":
         num_words = int(myargs["-nm"])
 
     if "-pt" in myargs:
-        initialize_with_pretrained = bool(myargs["-nm"])
+        initialize_with_pretrained = bool(myargs["-pt"])
 
     if "-wn" in myargs:
-        window_size = str(myargs["-wn"])
+        window_size = int(myargs["-wn"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]
