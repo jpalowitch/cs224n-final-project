@@ -184,7 +184,7 @@ def save_auc_scores(scores, approach, classifier, flavor,
     old_data.to_csv(fn)
     return None
 
-def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
+def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True, tag=None):
     """Records auc scores of rnn_tensorflow.py runs
     """
     fn = "auc_scores_rnn_" + dataset + ".csv"
@@ -200,6 +200,8 @@ def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
             old_data = old_data.drop_duplicates(subset=ow_fields, keep='first')
     else:
         old_data = pd.DataFrame(data=fields, index=[0])
+    if tag:
+        fn = tag + "_" + fn
     old_data.to_csv(fn)
     return None
 

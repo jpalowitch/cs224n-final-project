@@ -34,6 +34,8 @@ parser.add_argument("-gpu", help="add to use gpu on azure", action="store_true")
 parser.add_argument("-hidden_size", help="int: size of rnn layer", default=80, type=int)
 parser.add_argument("-max_length", help="int: size of longest sequence", default=50, type=int)
 parser.add_argument("-adapt_lr", help="add if you want learning rate to be adaptive", action="store_true")
+parser.add_argument("-tag", help="put something here to tag a specific run set; starts new auc_score file with tag.", default=None, type=str)
+
 args=parser.parse_args()
 
 if args.gpu:
@@ -193,7 +195,7 @@ with tf.device(device):
     if args.adapt_lr:
         global_step = tf.Variable(0, trainable=False)
         learning_rate = tf.train.exponential_decay(starter_learning_rate, global_step,
-                                                   500, 0.90, staircase=True)
+                                                   100, 0.95, staircase=True)
     else:
         learning_rate = learning_rate #tf.constant(learning_rate)
     # Optimizer
@@ -233,7 +235,7 @@ with tf.device(device):
     current_lr = starter_learning_rate
     dev_lengths = np.count_nonzero(X_dev, axis=1)
     test_lengths = np.count_nonzero(X_test, axis=1)
-    for target_class in range(6):
+    for target_class in range(len(cnames)):
         print("doing class " + cnames[target_class])
         
         # Getting labels for training
@@ -299,6 +301,7 @@ with tf.device(device):
 
     fields = vars(args)
     fields.pop('gpu')
+    tag = fields.pop('tag')
     dataset = fields.pop('dataset')
-    save_rnn_auc_scores(auc_scores, fields, dataset, cnames)
+    save_rnn_auc_scores(auc_scores, fields, dataset, cnames, tag=tag)
 
