@@ -211,7 +211,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_100_10000_25_0.05_5_True_embeddings.pkl"):
+def read_local_vectors(path="data/all_100_10000_15_0.05_5_True_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -232,7 +232,33 @@ def read_local_vectors(path="data/all_100_10000_25_0.05_5_True_embeddings.pkl"):
         print "Done"
         return embeddings
 
+def generate_tsne_model(path="tsne.pkl", num_words=2000):
+    """ Generates TSNE for locally trained vectors corpus
+
+    Args:
+        path: path for file
+
+    Returns:
+        X_embedded: embedding matrix reduced to two dimensions using tsne
+    """
+    full_path = "data/" + str(num_words) + path
+    if os.path.isfile(full_path):
+        print "Reading local TSNE"
+        with open(path, "rb") as fp:
+            X_embedded = pickle.load(fp)
+        print "Done"
+        return X_embedded
+    else:
+        from sklearn.manifold import TSNE
+        print "Generating new tsne for all words"
+        vectors = read_local_vectors()[:num_words]
+        X_embedded = TSNE(n_components=2, n_iter=5000, init="pca").fit_transform(vectors)
+        with open(full_path, "wb") as fp:
+            pickle.dump(X_embedded, fp)
+        return X_embedded
+
 ## UTILS
+
 def generate_local_tsne(words=None, corpus=None, threshold=2000):
     """ Generates a scatter plot of the locally trained word vectors
 
@@ -241,6 +267,7 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
         corpus: corpus to use for the visualization
         threshold: top words to include
     """
+    print 'threshold=' + str(threshold)
     from sklearn.manifold import TSNE
     import matplotlib.pyplot as plt
 
@@ -252,18 +279,18 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
     word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
     embeddings = read_local_vectors()
 
-    # train on top 2000 most occurring words - rank == index for the tokenizer
+    # train on top threshold most occurring words - rank == index for the tokenizer
     vectors = embeddings[:threshold]
     # generate tsne
-    X_embedded = TSNE(n_components=2, n_iter=5000, perplexity=20, init="pca").fit_transform(vectors)
+    X_embedded = TSNE(n_components=2, perplexity=40, n_iter=5000, init="pca").fit_transform(vectors)
     # Only plot words interested in
     x_chosen = []
     y_chosen = []
     labels_chosen = []
     for word in words:
         word_idx = tokenizer.word_index.get(word)
-        if word_idx >= threshold:
-            print "Word not in top {} words: {}".format(threshold, word)
+        if word_idx is None or word_idx >= threshold:
+            print "Word not found, word: {} index: {}".format(word, word_idx)
         else:
             row = X_embedded[word_idx]
             x_chosen.append(row[0])
@@ -273,11 +300,14 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
     plt.scatter(x_chosen, y_chosen)
 
     for i in range(len(labels_chosen)):
-        plt.annotate(labels_chosen[i], (x_chosen[i], y_chosen[i]))
+        plt.annotate(labels_chosen[i], (x_chosen[i], y_chosen[i]), horizontalalignment='left', \
+            verticalalignment='bottom')
     plt.show()
 
 def test_plot():
-    words = ["man", "boy", "woman", "girl", "fuck", "hate", "asshole", "the", "a"]
+    words = ["man", "boy", "woman", "girl", "hate", "is", \
+            "the", "hell",  "great", \
+            "love", "good", "stupid"]
     generate_local_tsne(words=words)
 
 def compare_words(words, num_words=10000, embedding_size=100):
@@ -378,3 +408,6 @@ if __name__ == "__main__":
             test_compare_words(100000)
         elif myargs["-test"] == "plot":
             test_plot()
+    if "-run" in myargs:
+        if myargs["-run"] == "tsne":
+            generate_tsne_model()
