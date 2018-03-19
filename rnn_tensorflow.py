@@ -104,7 +104,7 @@ with tf.device(device):
             max_features=max_features)
     elif args.embeds == 'ours':
         FLAVOR = FLAVOR + 'ourEmbeds'
-        embedding_matrix, X_train = get_embedding_matrix_and_sequences()
+        embedding_matrix, X_train = get_embedding_matrix_and_sequences(use_local=True)
         _, X_dev = get_embedding_matrix_and_sequences(data_set="dev")
         _, X_test = get_embedding_matrix_and_sequences(data_set="test")
 
@@ -207,7 +207,7 @@ with tf.device(device):
 
     # Final scoring
     def calc_auc_tf(X, Y, seq_lens, mean=True):
-        if args.sigmoid: 
+        if args.sigmoid:
             return calc_auc(Y, pred.eval({inputs: X, seq_lengths: seq_lens}), mean)
         else:
             return calc_auc(Y[:, 1], pred.eval({inputs: X, seq_lengths: seq_lens})[:, 1])
@@ -237,7 +237,7 @@ with tf.device(device):
     test_lengths = np.count_nonzero(X_test, axis=1)
     for target_class in range(len(cnames)):
         print("doing class " + cnames[target_class])
-        
+
         # Getting labels for training
         if args.sigmoid:
             train_target = y_tra
@@ -247,44 +247,44 @@ with tf.device(device):
             train_target = get_onehots_from_labels(y_tra[:, target_class])
             dev_target = get_onehots_from_labels(y_dev[:, target_class])
             test_target = get_onehots_from_labels(y_test[:, target_class])
-                
+
         # Getting weight saver fn
         save_fn = saver_fn_rnn(vars(args), cnames[target_class])
 
         # Start training
         max_auc = 0
         with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, log_device_placement=True)) as sess:
-        
+
             # Run initializer
             saver = tf.train.Saver()
             sess.run(global_init)
-            
-            # Training 
+
+            # Training
             for epoch in range(training_epochs):
                 avg_cost = 0.
                 total_batch = int(n_train/batch_size)
-                
+
                 # Loop over batches
                 minibatches = minibatch(X_tra, train_target, batch_size)
                 for batch_xs, batch_ys in minibatches:
                     batch_lengths = np.count_nonzero(batch_xs, axis=1)
                     _, c = sess.run([optimizer, cost], feed_dict={
-                        inputs: batch_xs, 
-                        labels: batch_ys, 
+                        inputs: batch_xs,
+                        labels: batch_ys,
                         seq_lengths: batch_lengths})
                     avg_cost += c / total_batch
-                
+
                 # Display logs
                 if (epoch+1) % display_step == 0:
                     AUC = calc_auc_tf(X_dev, dev_target, dev_lengths)
-                    print("Epoch:", '%04d' % (epoch+1), 
+                    print("Epoch:", '%04d' % (epoch+1),
                           "cost=", avg_cost,
                           "dev.auc=", AUC)
                     if AUC > max_auc:
                         print ("New best AUC on dev!")
                         saver.save(sess, save_fn)
                         max_auc = AUC
-            
+
             print("Optimization Finished!")
             saver.restore(sess, save_fn)
             if args.sigmoid:
@@ -294,7 +294,7 @@ with tf.device(device):
             else:
                 AUC = calc_auc_tf(X_test, test_target, test_lengths)
                 print ("Test AUC:", AUC)
-                auc_scores.append(AUC)        
+                auc_scores.append(AUC)
             sess.close()
         if args.sigmoid:
             break
@@ -304,4 +304,3 @@ with tf.device(device):
     tag = fields.pop('tag')
     dataset = fields.pop('dataset')
     save_rnn_auc_scores(auc_scores, fields, dataset, cnames, tag=tag)
-

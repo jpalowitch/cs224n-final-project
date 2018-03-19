@@ -41,12 +41,9 @@ def build_coccurrence_matrix(corpus, min_frequency=2):
         cooccurrence_matrix: dictionary of form {(center_word_index, context_word_index):count}
         tokenizer: word tokenizer to fetch information for word frequency and other values
     """
-    print "Building cooccurrence matrix"
     # train tokenizer on corpus
-    print 'corpus shape: {}'.format(np.array(corpus).shape)
     tokenizer = Tokenizer(num_words=num_words)
     tokenizer.fit_on_texts(corpus)
-    # print_tokenizer_information(tokenizer, corpus)
 
     # dict of {token_index: word}
     word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
@@ -86,14 +83,12 @@ def build_coccurrence_matrix(corpus, min_frequency=2):
             if tokenizer.word_counts[v_actual] >= min_frequency and tokenizer.word_counts[u_actual] >= min_frequency:
                  cooccurrence_matrix[(v, u)] = count
 
-        print "Completed building cooccurrence matrix"
         return cooccurrence_matrix, tokenizer
     else:
-        print "Completed building cooccurrence matrix"
         return cooccurrence_matrix_unfiltered, tokenizer
 
 
-def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
+def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer, save_partial=False):
     """ Builds and trains a tensorflow model for creating GloVe vectors based off
         of a cooccurrence_matrix.
 
@@ -102,6 +97,8 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
         vocab_size: size of vocabulary
         scope: variable scope for tensors
         tokenizer: the tokenizer for the vocabulary
+        save_partial: whether to store partially trained embeddings during
+                      training time
 
     Returns:
         embeddings: (vocab_size x embedding_size) shape matrix of word vectors
@@ -159,7 +156,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
     # set optimizer
     optimizer = tf.train.AdagradOptimizer(learning_rate).minimize(total_loss)
 
-    # train!
+    # train
     with tf.Session() as sess:
         tf.global_variables_initializer().run()
         for epoch in range(num_epochs):
@@ -178,6 +175,7 @@ def build_graph_and_train(cooccurrence_matrix, vocab_size, scope, tokenizer):
                 }
                 sess.run(optimizer, feed_dict=feed_dict)
                 idx += 1
+
             # save partially trained embedddings
             partial_embeddings = combined_embeddings.eval()
             full_path = "data/" + "partial_all" + "_" + str(embedding_size) + "_" +  \
@@ -248,7 +246,7 @@ def get_cooccurrence_batches(cooccurrence_matrix, batch_size, shuffle=True):
         yield i, j, X_ij
 
 def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
-    """ Generates embeddings of matrix based off of full vocabulary (no split)
+    """ Generates embeddings of matrix based off of vocabulary
 
     Args:
         load_files: whether to load previously saved files
@@ -272,7 +270,7 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
         tokenizer = info.get("tokenizer")
         matrix = info.get("matrix")
         vocab_size = len(tokenizer.word_index.keys())
-        embeddings = build_graph_and_train(matrix, vocab_size, "test_all", tokenizer)
+        embeddings = build_graph_and_train(matrix, vocab_size, "all", tokenizer)
         with open(full_path, "wb") as fp:
             pickle.dump(embeddings, fp)
         return embeddings
@@ -280,7 +278,7 @@ def generate_embeddings_all(load_files=False, path="embeddings.pkl"):
 def glove_pretrained_initializer(vocab_size, embedding_size, tokenizer, \
                                  load_files=True, path="pretrained_initializer.pkl"):
     """ Creates a word embeddings matrix initialized with pretrained GloVe
-        vectors
+        vectors.
 
     Args:
         vocab_size: size of the vocabulary
@@ -339,7 +337,6 @@ def get_pretrained_glove_vectors(path=glove_embeddings_path, load_files=False):
             glove_vectors = open(os.path.join(glove_directory, "glove.6B.100d.txt"))
         else:
             glove_vectors = open(os.path.join(glove_directory, "glove.6B.50d.txt"))
-        # glove_vectors = open("data/glove.42B.300d.txt", "rb")
         for line in glove_vectors:
             values = line.split()
             word = values[0]
@@ -350,7 +347,6 @@ def get_pretrained_glove_vectors(path=glove_embeddings_path, load_files=False):
             pickle.dump(embeddings_index, fp)
         return embeddings_index
 
-###### UTILS
 def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
     """ Reconstructs sentence from list of tokens.
 
@@ -367,6 +363,10 @@ def get_sentence_from_tokens(tokenized_sentence, word_index_reverse):
 
 def print_tokenizer_information(tokenizer=None, corpus=None):
     """ Prints useful information about the tokenizer.
+
+    Args:
+        tokenizer: word tokenizer
+        corpus: list of sentences
     """
     if tokenizer is None:
         corpus = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
@@ -384,7 +384,7 @@ def print_tokenizer_information(tokenizer=None, corpus=None):
     print len(tokenizer.word_index.keys())
 
 def test_build_coccurrence_matrix():
-    """ Tests the model with an arbitrary data set
+    """ Tests the model with a small arbitrary data set
     """
     corpus = get_development_data()
     cooccur, tokenizer = build_coccurrence_matrix(corpus, min_frequency=2)
@@ -404,6 +404,9 @@ def test_train():
 
 def test_glove_model(scope):
     """Tests the model using the first fifteen elements in the training data sets
+
+    Args:
+        scope: variable name scope for the graph
     """
     corpus = get_development_data()
     cooccurrence_matrix, tokenizer  = build_coccurrence_matrix(corpus)
@@ -448,9 +451,7 @@ def test_gpu():
         a = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[2, 3], name='a')
         b = tf.constant([1.0, 2.0, 3.0, 4.0, 5.0, 6.0], shape=[3, 2], name='b')
     c = tf.matmul(a, b)
-    # Creates a session with log_device_placement set to True.
     sess = tf.Session(config=tf.ConfigProto(log_device_placement=True))
-    # Runs the op.
     print(sess.run(c))
     sess.close()
 
@@ -478,6 +479,9 @@ if __name__ == "__main__":
 
     if "-wn" in myargs:
         window_size = int(myargs["-wn"])
+
+    if "-lr" in myargs:
+        learning_rate = int(myargs["-lr"])
 
     if "-run" in myargs:
         run_arg = myargs["-run"]

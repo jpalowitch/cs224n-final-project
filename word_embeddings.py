@@ -61,12 +61,13 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
     """ Vectorizes sentences by summing the GloVe representations of each word.
 
     Args:
-        df: sentences to vectorize
-        embeddings: trained word vectors
+        word_index_reverse: dictionary of form embedding_index: word
+        pretrained_embeddings: GloVe pretrained vectors
+        sequences: word sequences in which each word is replaced by its index
         use_local: whether to use the embeddings trained on the corpus
-        local_embeddings: embeddings trained on the corpus
+        local_embeddings: custom embeddings trained on the corpus
     Returns:
-        sentences: single vector representation of the sentence
+        sentences: list of vector representations of the sentences
     """
     print "Vectorizing sentences"
     sentences = []
@@ -257,8 +258,6 @@ def generate_tsne_model(path="tsne.pkl", num_words=2000):
             pickle.dump(X_embedded, fp)
         return X_embedded
 
-## UTILS
-
 def generate_local_tsne(words=None, corpus=None, threshold=2000):
     """ Generates a scatter plot of the locally trained word vectors
 
@@ -283,7 +282,7 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
     vectors = embeddings[:threshold]
     # generate tsne
     X_embedded = TSNE(n_components=2, perplexity=40, n_iter=5000, init="pca").fit_transform(vectors)
-    # Only plot words interested in
+    # only plot words interested in
     x_chosen = []
     y_chosen = []
     labels_chosen = []
@@ -305,6 +304,8 @@ def generate_local_tsne(words=None, corpus=None, threshold=2000):
     plt.show()
 
 def test_plot():
+    """ Creates a tsne plot using a small group of words.
+    """
     words = ["man", "boy", "woman", "girl", "hate", "is", \
             "the", "hell",  "great", \
             "love", "good", "stupid"]
@@ -312,13 +313,13 @@ def test_plot():
 
 def compare_words(words, num_words=10000, embedding_size=100):
     """ Compares pairs of words using the locally trained vectors as well as
-        to their glove counterparts
+        to their glove counterparts.
 
     Args:
-        words: List of tuples of (word, word)
+        words: list of tuples of (word, word)
+        num_words: most frequently occurring words to fit the tokenizer on
+        embedding_size: number of features in each word embedding
     """
-    # change this if using different local glove embeddings than
-    # "data/all_50_10000_2_embeddings.pkl"
     if embedding_size == 100:
         path="data/all_100_10000_15_0.05_5_embeddings.pkl"
     else:
@@ -334,7 +335,6 @@ def compare_words(words, num_words=10000, embedding_size=100):
     local_embeddings = read_local_vectors(path=path)
 
     for (word1, word2) in words:
-        print
         print 'word1: {} word2: {}'.format(word1, word2)
         word1_vector = local_embeddings[tokenizer.word_index.get(word1)]
         word2_vector = local_embeddings[tokenizer.word_index.get(word2)]
@@ -342,7 +342,6 @@ def compare_words(words, num_words=10000, embedding_size=100):
         glove_diff = cosine(glove_embeddings.get(word1), glove_embeddings.get(word2))
         print 'local difference: {}'.format(diff)
         print 'glove difference: {}'.format(glove_diff)
-        print
         print '--------GloVe comparison--------'
         glove_vector = glove_embeddings.get(word1)
         if glove_vector is not None:
@@ -359,10 +358,16 @@ def compare_words(words, num_words=10000, embedding_size=100):
             print 'Could not find GloVe vector for {}'.format(word2)
 
 def test_compare_words(num_words):
+    """ Compares a small group of words from the pretrained and custom
+        embeddings.
+    """
     arr = [("man", "boy"), ("woman", "girl"), ("death", "dead"), ("eat", "ate"), ("you", "i"), ("he", "she"), ("him", "her")]
     compare_words(arr, num_words=num_words)
 
 def test_data_set_glove_vectors():
+    """ Verifies that read_local_vectors generates embeddings with the correct
+        dimmenions.
+    """
     train, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
     train_df = train[["comment_text"]].values.flatten()
     tokenizer = Tokenizer()
@@ -371,15 +376,10 @@ def test_data_set_glove_vectors():
     assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
     print "GloVe vector dimensions are correct"
 
-def test_glove_vectors():
-    df = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
-    tokenizer = Tokenizer()
-    tokenizer.fit_on_texts(df)
-    embeddings = read_local_vectors()
-    assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
-    print "GloVe vector dimensions are correct"
-
 def test_get_embedding_matrix_and_sequences():
+    """ Reads the embedding matrix and sequences and builds an embedding for the
+        second sentence.
+    """
     embeddings, sequences = get_embedding_matrix_and_sequences()
     print 'embedding 1: {}'.format(embeddings[1])
     print 'sequence 1: {}'.format(sequences[1])
@@ -388,6 +388,8 @@ def test_get_embedding_matrix_and_sequences():
         print 'word: {} embedding: {}'.format(word, embeddings[word])
 
 def test_get_tokenized_sentences_local_embeddings():
+    """ Reads the custom trained word embeddings.
+    """
     sentences = get_tokenized_sentences(load_files=False, use_local=True)
     train_vectors = sentences.get("train").get("vectors")
     print train_vectors[0]

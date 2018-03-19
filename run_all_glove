@@ -1,0 +1,25 @@
+# runs with random embeddings initializations
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05
+python glove.py -em 50 -wn 10 -nm 100000 -lr 0.05
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05
+python glove.py -em 50 -wn 5 -nm 10000 -lr 0.05
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.1
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05
+python glove.py -em 100 -wn 10 -nm 100000 -lr 0.05
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05
+python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.1
+python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -ep 15
+
+# runs with initializations with pretrained vectors
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 50 -wn 10 -nm 100000 -lr 0.05 -pt True
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 50 -wn 5 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 50 -wn 10 -nm 10000 -lr 0.1 -pt True
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 100 -wn 10 -nm 100000 -lr 0.05 -pt True
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -pt True
+python glove.py -em 100 -wn 10 -nm 10000 -lr 0.1 -pt True
+python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -pt True -ep 15
