@@ -8,6 +8,7 @@ import tensorflow as tf
 from project_utils import getopts
 from sys import argv
 from glove import generate_embeddings_all, get_pretrained_glove_vectors, embedding_size
+from scipy.spatial.distance import cosine
 
 EMBEDDING_DIM = embedding_size
 TRAIN_DATA_FILE = "train.csv"
@@ -60,12 +61,13 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
     """ Vectorizes sentences by summing the GloVe representations of each word.
 
     Args:
-        df: sentences to vectorize
-        embeddings: trained word vectors
+        word_index_reverse: dictionary of form embedding_index: word
+        pretrained_embeddings: GloVe pretrained vectors
+        sequences: word sequences in which each word is replaced by its index
         use_local: whether to use the embeddings trained on the corpus
-        local_embeddings: embeddings trained on the corpus
+        local_embeddings: custom embeddings trained on the corpus
     Returns:
-        sentences: single vector representation of the sentence
+        sentences: list of vector representations of the sentences
     """
     print "Vectorizing sentences"
     sentences = []
@@ -162,7 +164,7 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
             pickle.dump(sentence_vectors, fp)
         return sentence_vectors
 
-def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=True):
+def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", load_files=False, use_local=False):
     """ Creates embedding matrix for data set and returns embedding matrix and
         an ordered list of word index sequences.
 
@@ -198,7 +200,6 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             for word, idx in sentence_vectors.get("word_index").items():
                 embedding_vector = embeddings.get(word)
                 if embedding_vector is not None:
-                    embedding_vector = embeddings.get(word)
                     embedding_matrix[idx] = embedding_vector
 
         # get sequences and save
@@ -211,7 +212,7 @@ def get_embedding_matrix_and_sequences(path="embeddings.pkl", data_set="train", 
             pickle.dump(embeddings_and_sequences, fp)
         return embedding_matrix, sequences
 
-def read_local_vectors(path="data/all_50_10000_2_0.05_10_True_embeddings.pkl"):
+def read_local_vectors(path="data/all_100_10000_15_0.05_5_True_embeddings.pkl"):
     """ Returns the GloVe vectors trained for the dataset
 
     Args:
@@ -227,23 +228,100 @@ def read_local_vectors(path="data/all_50_10000_2_0.05_10_True_embeddings.pkl"):
         print "Done"
         return embeddings
     else:
-        print "Could not find embeddings, generating new ones"
+        print "Could not find embeddings with path {}, generating new ones".format(path)
         embeddings = generate_embeddings_all()
         print "Done"
         return embeddings
 
-## UTILS
-def compare_words(words, num_words=10000):
-    """ Compares pairs of words using the locally trained vectors as well as
-        to their glove counterparts
+def generate_tsne_model(path="tsne.pkl", num_words=2000):
+    """ Generates TSNE for locally trained vectors corpus
 
     Args:
-        words: List of tuples of (word, word)
+        path: path for file
+
+    Returns:
+        X_embedded: embedding matrix reduced to two dimensions using tsne
     """
-    # change this if using different local glove embeddings than
-    # "data/all_50_10000_2_embeddings.pkl"
-    if num_words == 100000:
-        path="data/all_50_100000_2_embeddings.pkl"
+    full_path = "data/" + str(num_words) + path
+    if os.path.isfile(full_path):
+        print "Reading local TSNE"
+        with open(path, "rb") as fp:
+            X_embedded = pickle.load(fp)
+        print "Done"
+        return X_embedded
+    else:
+        from sklearn.manifold import TSNE
+        print "Generating new tsne for all words"
+        vectors = read_local_vectors()[:num_words]
+        X_embedded = TSNE(n_components=2, n_iter=5000, init="pca").fit_transform(vectors)
+        with open(full_path, "wb") as fp:
+            pickle.dump(X_embedded, fp)
+        return X_embedded
+
+def generate_local_tsne(words=None, corpus=None, threshold=2000):
+    """ Generates a scatter plot of the locally trained word vectors
+
+    Args:
+        words: list of words to visualize in the plot
+        corpus: corpus to use for the visualization
+        threshold: top words to include
+    """
+    print 'threshold=' + str(threshold)
+    from sklearn.manifold import TSNE
+    import matplotlib.pyplot as plt
+
+    if corpus is None:
+        corpus = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
+
+    tokenizer = Tokenizer()
+    tokenizer.fit_on_texts(corpus)
+    word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
+    embeddings = read_local_vectors()
+
+    # train on top threshold most occurring words - rank == index for the tokenizer
+    vectors = embeddings[:threshold]
+    # generate tsne
+    X_embedded = TSNE(n_components=2, perplexity=40, n_iter=5000, init="pca").fit_transform(vectors)
+    # only plot words interested in
+    x_chosen = []
+    y_chosen = []
+    labels_chosen = []
+    for word in words:
+        word_idx = tokenizer.word_index.get(word)
+        if word_idx is None or word_idx >= threshold:
+            print "Word not found, word: {} index: {}".format(word, word_idx)
+        else:
+            row = X_embedded[word_idx]
+            x_chosen.append(row[0])
+            y_chosen.append(row[1])
+            labels_chosen.append(word)
+
+    plt.scatter(x_chosen, y_chosen)
+
+    for i in range(len(labels_chosen)):
+        plt.annotate(labels_chosen[i], (x_chosen[i], y_chosen[i]), horizontalalignment='left', \
+            verticalalignment='bottom')
+    plt.show()
+
+def test_plot():
+    """ Creates a tsne plot using a small group of words.
+    """
+    words = ["man", "boy", "woman", "girl", "hate", "is", \
+            "the", "hell",  "great", \
+            "love", "good", "stupid"]
+    generate_local_tsne(words=words)
+
+def compare_words(words, num_words=10000, embedding_size=100):
+    """ Compares pairs of words using the locally trained vectors as well as
+        to their glove counterparts.
+
+    Args:
+        words: list of tuples of (word, word)
+        num_words: most frequently occurring words to fit the tokenizer on
+        embedding_size: number of features in each word embedding
+    """
+    if embedding_size == 100:
+        path="data/all_100_10000_15_0.05_5_embeddings.pkl"
     else:
         path="data/all_50_10000_2_embeddings.pkl"
 
@@ -257,35 +335,39 @@ def compare_words(words, num_words=10000):
     local_embeddings = read_local_vectors(path=path)
 
     for (word1, word2) in words:
-        print
         print 'word1: {} word2: {}'.format(word1, word2)
         word1_vector = local_embeddings[tokenizer.word_index.get(word1)]
         word2_vector = local_embeddings[tokenizer.word_index.get(word2)]
-        diff = np.sum(word1_vector) - np.sum(word2_vector)
-        glove_diff =  np.sum(glove_embeddings.get(word1)) - np.sum(glove_embeddings.get(word2))
+        diff = cosine(word1_vector, word2_vector)
+        glove_diff = cosine(glove_embeddings.get(word1), glove_embeddings.get(word2))
         print 'local difference: {}'.format(diff)
         print 'glove difference: {}'.format(glove_diff)
-        print
         print '--------GloVe comparison--------'
         glove_vector = glove_embeddings.get(word1)
         if glove_vector is not None:
-            glove_diff = np.sum(word1_vector) - np.sum(glove_vector)
+            glove_diff = cosine(word1_vector, glove_vector)
             print 'Word 1 GloVe difference: {}'.format(glove_diff)
         else:
             print 'Could not find GloVe vector for {}'.format(word1)
 
         glove_vector = glove_embeddings.get(word2)
         if glove_vector is not None:
-            glove_diff = np.sum(word2_vector) - np.sum(glove_vector)
+            glove_diff = cosine(word2_vector, glove_vector)
             print 'Word 2 GloVe difference: {}'.format(glove_diff)
         else:
             print 'Could not find GloVe vector for {}'.format(word2)
 
 def test_compare_words(num_words):
+    """ Compares a small group of words from the pretrained and custom
+        embeddings.
+    """
     arr = [("man", "boy"), ("woman", "girl"), ("death", "dead"), ("eat", "ate"), ("you", "i"), ("he", "she"), ("him", "her")]
     compare_words(arr, num_words=num_words)
 
 def test_data_set_glove_vectors():
+    """ Verifies that read_local_vectors generates embeddings with the correct
+        dimmenions.
+    """
     train, _, _ = get_TDT_split(pd.read_csv('train.csv').fillna(' '))
     train_df = train[["comment_text"]].values.flatten()
     tokenizer = Tokenizer()
@@ -294,15 +376,10 @@ def test_data_set_glove_vectors():
     assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
     print "GloVe vector dimensions are correct"
 
-def test_glove_vectors():
-    df = pd.read_csv('train.csv').fillna(' ')[["comment_text"]].values.flatten()
-    tokenizer = Tokenizer()
-    tokenizer.fit_on_texts(df)
-    embeddings = read_local_vectors()
-    assert len(embeddings) == (len(tokenizer.word_index.keys()) + 1)
-    print "GloVe vector dimensions are correct"
-
 def test_get_embedding_matrix_and_sequences():
+    """ Reads the embedding matrix and sequences and builds an embedding for the
+        second sentence.
+    """
     embeddings, sequences = get_embedding_matrix_and_sequences()
     print 'embedding 1: {}'.format(embeddings[1])
     print 'sequence 1: {}'.format(sequences[1])
@@ -311,6 +388,8 @@ def test_get_embedding_matrix_and_sequences():
         print 'word: {} embedding: {}'.format(word, embeddings[word])
 
 def test_get_tokenized_sentences_local_embeddings():
+    """ Reads the custom trained word embeddings.
+    """
     sentences = get_tokenized_sentences(load_files=False, use_local=True)
     train_vectors = sentences.get("train").get("vectors")
     print train_vectors[0]
@@ -328,4 +407,9 @@ if __name__ == "__main__":
         elif myargs["-test"] == "glove":
             test_glove_vectors()
         elif myargs["-test"] == "words":
-            test_compare_words(10000)
+            test_compare_words(100000)
+        elif myargs["-test"] == "plot":
+            test_plot()
+    if "-run" in myargs:
+        if myargs["-run"] == "tsne":
+            generate_tsne_model()

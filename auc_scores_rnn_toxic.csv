@@ -1,0 +1,3 @@
+,adapt_lr,attn,bd,cell,dense_drop,embed_drop,embeds,hidden_size,identity_hate,insult,max_length,nepochs,obscene,severe_toxic,sigmoid,threat,toxic,weight_reg
+0,False,False,False,gru,0,0,ours,80,0.9717275042135138,0.9763947181749184,50,3,0.9796067115206012,0.9841621807208554,True,0.9754068047337278,0.9655506409723658,0
+1,False,False,False,lstm,0,0,ours,80,0.965468531910721,0.976080169643138,50,3,0.9803105109702274,0.9835391080407434,True,0.9665597254680965,0.963763209045945,0

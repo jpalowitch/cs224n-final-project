@@ -204,6 +204,8 @@ def save_rnn_auc_scores(scores, fields, dataset, cnames, tag=None, overwrite=Tru
             old_data = old_data.drop_duplicates(subset=ow_fields, keep='first')
     else:
         old_data = pd.DataFrame(data=fields, index=[0])
+    if tag:
+        fn = tag + "_" + fn
     old_data.to_csv(fn)
     return None
 
