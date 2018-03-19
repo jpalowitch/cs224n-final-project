@@ -1,0 +1,2 @@
+# To reproduce baseline and word-level RNN results:
+bash reproduce_baseline_results
