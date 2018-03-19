@@ -184,10 +184,14 @@ def save_auc_scores(scores, approach, classifier, flavor,
     old_data.to_csv(fn)
     return None
 
-def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
+def save_rnn_auc_scores(scores, fields, dataset, cnames, tag=None, overwrite=True):
     """Records auc scores of rnn_tensorflow.py runs
     """
-    fn = "auc_scores_rnn_" + dataset + ".csv"
+    if tag:
+        fn = "auc_scores_rnn_" + dataset + "_" + tag + ".csv"
+    else:
+        fn = "auc_scores_rnn_" + dataset + ".csv"
+
     ow_fields = list(fields.keys())
     fields.update(zip(cnames, scores))
     if os.path.isfile(fn):
@@ -204,7 +208,7 @@ def save_rnn_auc_scores(scores, fields, dataset, cnames, overwrite=True):
     return None
 
 def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
-                            n_features=NUM_FEATURES, sparse=False):
+                            n_features=NUM_FEATURES, sparse=False, prot=3):
     """ Vectorizes the corpus using tf-idf. Saves in sparse format. Also saves
         the vectorizer object for potential later use on new examples.
 
@@ -247,7 +251,7 @@ def vectorize_corpus_tf_idf(train, dev, test, path=TFIDF_VECTORS_FILE_TOXIC,
             'test_vecs': hstack([vectorizer.transform(test_text)]),
             'vectorizer': vectorizer}
         with open(path, "wb") as fp:
-            pickle.dump(sentence_vectors, fp)
+            pickle.dump(sentence_vectors, fp, protocol=prot)
 
     # Extracting and returning
     train_vecs = sentence_vectors['train_vecs']
