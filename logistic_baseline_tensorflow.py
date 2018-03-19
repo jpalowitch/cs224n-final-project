@@ -73,7 +73,7 @@ elif myargs['-nettype'] == 'one':
     b = tf.Variable(tf.zeros([hidden_size]))
     z = tf.sparse_tensor_dense_matmul(x, W) + b
     h = tf.nn.relu(z)
-    h_drop = tf.nn.dropout(h, 1 - dropout_rate)
+    h = tf.nn.dropout(h, 1 - dropout_rate)
     W2 = tf.get_variable("weights2",
                      shape=[hidden_size, 2],
                      initializer=tf.contrib.layers.xavier_initializer())
