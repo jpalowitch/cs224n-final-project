@@ -10,3 +10,5 @@ tf/
 *.pkl
 data/
 train.csv
+auc_scores.csv
+auc_scores_rnn_toxic.csv

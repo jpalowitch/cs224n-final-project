@@ -15,6 +15,7 @@ import os
 import pandas as pd
 import random
 import sys
+import copy
 random.seed(RUN_SEED)
 
 # Getting command args
@@ -35,6 +36,8 @@ parser.add_argument("-gpu", help="add to use gpu on azure", action="store_true")
 parser.add_argument("-hidden_size", help="int: size of rnn layer", default=80, type=int)
 parser.add_argument("-max_length", help="int: size of longest sequence", default=50, type=int)
 parser.add_argument("-adapt_lr", help="add if you want learning rate to be adaptive", action="store_true")
+parser.add_argument("-batch_size", help="integer batch size", default=32, type=int)
+parser.add_argument("-tag", help="score filename tag if you want to separately save these auc scores", type=str, default=None)
 args=parser.parse_args()
 
 if not args.sigmoid:
@@ -49,23 +52,22 @@ else:
 
 APPROACH = "rnn"
 CLASSIFIER = "logistic"
-FLAVOR = "tensorflow-ADAM-kerasSeqs"
+FLAVOR = "tensorflow-ADAM"
 
 # Parameters
-max_features = 10000 # Originally 30000
+max_features = 30000 # Originally 30000
 starter_learning_rate = 0.001 # starter learning rate for adaptive lr
 learning_rate = 0.001 # used if -adapt_lr flag not present
+lr_decay = 0.95
 hidden_size = args.hidden_size
-batch_size = 32
 embed_size = 100
+batch_size = args.batch_size
 max_length = args.max_length
 display_step = 1
 dense_dropout = args.dense_drop / 100.0
 embed_dropout = args.embed_drop / 100.0
 weight_reg = 10.0**(-args.weight_reg) * int(args.weight_reg > 0)
 training_epochs = args.nepochs
-
-
 
 # Preparing data
 if args.dataset == 'attack':
@@ -111,10 +113,16 @@ elif args.embeds == 'ours':
     _, X_dev = get_embedding_matrix_and_sequences(data_set="dev")
     _, X_test = get_embedding_matrix_and_sequences(data_set="test")
 
-save_fn_stem = saver_fn_rnn(vars(args), cnames[0], stem=True)
-save_fn = saver_fn_rnn(vars(args), cnames[0])
-
-with open('data/' + save_fn_stem + "_results.pkl", "rb") as File:
+# Getting weight saver fn
+save_fields = copy.deepcopy(vars(args))
+save_fields.pop('embed_drop')
+save_fields.pop('dense_drop')
+save_fields.pop('gpu')
+save_fn = saver_fn_rnn(save_fields, cnames[0])
+save_fn_stem = saver_fn_rnn(save_fields, cnames[0], stem=True)
+pkl_fn = 'data/' + save_fn_stem + "_results.pkl"
+print("pickle_save_fn = " + pkl_fn)
+with open(pkl_fn, "rb") as File:
     d = pickle.load(File)
 
 alphas = d['alphas']

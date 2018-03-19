@@ -162,9 +162,9 @@ with tf.device(device):
             alphas = tf.nn.softmax(alpha_logits) # batch_size x max_length
             alphas_broadcast = tf.expand_dims(alphas, 2) # batch_size x max_length x 1
             outputs_weighted = outputs * alphas_broadcast # batch_size x max_length x true_hidden_size
-            return tf.reduce_sum(outputs_weighted, axis=1) # batch_size x true_hidden_size
-        amax = get_attention_output(xmax)
-        amean = get_attention_output(xmean)
+            return tf.reduce_sum(outputs_weighted, axis=1), alphas # batch_size x true_hidden_size
+        amax, maxalphas = get_attention_output(xmax)
+        amean, meanalphas = get_attention_output(xmean)
         xpool = tf.concat([xpool, amax, amean], axis=1)
         pooled_size = 2 * pooled_size
 
@@ -256,6 +256,7 @@ with tf.device(device):
         save_fields.pop('dense_drop')
         save_fields.pop('gpu')
         save_fn = saver_fn_rnn(save_fields, cnames[target_class])
+        save_fn_stem = saver_fn_rnn(save_fields, cnames[target_class], stem=True)
 
         # Start training
         max_auc = 0
@@ -264,36 +265,12 @@ with tf.device(device):
             # Run initializer
             saver = tf.train.Saver()
             sess.run(global_init)
-            
-            # Training 
-            for epoch in range(training_epochs):
-                avg_cost = 0.
-                total_batch = int(n_train/batch_size)
-                
-                # Loop over batches
-                minibatches = minibatch(X_tra, train_target, batch_size)
-                for batch_xs, batch_ys in minibatches:
-                    batch_lengths = np.count_nonzero(batch_xs, axis=1)
-                    _, c = sess.run([optimizer, cost], feed_dict={
-                        inputs: batch_xs, 
-                        labels: batch_ys, 
-                        seq_lengths: batch_lengths})
-                    avg_cost += c / total_batch
-                
-                # Display logs
-                if (epoch+1) % display_step == 0:
-                    AUC = calc_auc_tf(X_dev, dev_target, dev_lengths)
-                    print("Epoch:", '%04d' % (epoch+1), 
-                          "cost=", avg_cost,
-                          "dev.auc=", AUC)
-                    print("-sigmoid is" + str(args.sigmoid))
-                    print("target_class is"  + str(target_class))
-                    if AUC > max_auc:
-                        print ("New best AUC on dev!")
-                        saver.save(sess, save_fn)
-                        max_auc = AUC
-            
+                       
             print("Optimization Finished!")
+            print("save_fn is ", save_fn)
+            textfile = open(save_fn + ".txt", "w")
+            textfile.write(save_fn)
+            textfile.close()
             saver.restore(sess, save_fn)
             if args.sigmoid:
                 auc_scores = calc_auc_tf(X_test, test_target, test_lengths, mean=False)
@@ -303,12 +280,24 @@ with tf.device(device):
                 AUC = calc_auc_tf(X_test, test_target, test_lengths)
                 print ("Test AUC:", AUC)
                 auc_scores.append(AUC)        
+
+            if args.sigmoid:
+                print(save_fn)
+                saver.restore(sess, save_fn)
+                if args.attn:
+                    preds, meanalphas = sess.run([pred, meanalphas], feed_dict={
+                        inputs: X_test, labels: test_target, seq_lengths: test_lengths})
+                    d = {'preds': preds, 'alphas': meanalphas}
+                else:
+                    preds = sess.run([pred], feed_dict={
+                        inputs: X_test, labels: test_target, seq_lengths: test_lengths})
+                    d = {'preds': preds}
+                pkl_fn = 'data/' + save_fn_stem + "_results.pkl"
+                print("pickle_save_fn = " + pkl_fn)
+                with open(pkl_fn, "wb") as File:
+                    pickle.dump(d, File)
+                break
             sess.close()
         if args.sigmoid:
             break
-
-    fields = vars(args)
-    fntag = fields.pop('tag')
-    dataset = fields.pop('dataset')
-    save_rnn_auc_scores(auc_scores, fields, dataset, cnames, tag=fntag)
 

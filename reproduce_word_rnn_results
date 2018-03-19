@@ -1,0 +1,50 @@
+
+### Running RNNs
+
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -bd -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -bd -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -bd -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -bd -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_tensorflow.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
+### Doing baselines and getting all results
+
+python2 logistic_baseline_tensorflow_refresh.py -nettype zero -dataset toxic -reglevel 0
+python2 logistic_baseline_tensorflow_refresh.py -nettype zero -dataset attack -reglevel 0
+python2 sigmoid_baseline_tensorflow_refresh.py -nettype zero -dataset toxic -reglevel 0
+python2 sigmoid_baseline_tensorflow_refresh.py -nettype zero -dataset attack -reglevel 0
+
+python 2 consolidate_baseline_results.py
+
+### Getting attention scores and top category comments from -bd -lstm models
+
+python2 rnn_tensorflow_save_output.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_tensorflow_save_output.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
+python2 rnn_tensorflow_save_output.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_tensorflow_save_output.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
+python2 rnn_results.py -embeds stock -dataset toxic -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_results.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
+python2 rnn_results.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_results.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
+
