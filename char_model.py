@@ -130,8 +130,12 @@ AUC = calc_auc(y_test,y_preds, mean=False)
 
 filename = 'data/auc_scores_' + 'chars' + str(args.cell) + str(args.max_length) + '.csv'
 
-save_auc_scores(AUC, "lstm_char250max", "sigmoid", "Adam",
+save_str = str(arge.cell) + '_char' + str(maxlen)
+
+save_auc_scores(AUC, save_str, "sigmoid", "Adam",
                     fn=filename, overwrite=True, cnames=CLASS_NAMES)
 
-with open('data/char_lstm250max_sigmoid_model_chars3', 'wb') as file_pi:
+model_save = 'data/' + save_str + 'model'
+
+with open('model_save', 'wb') as file_pi:
         pickle.dump(fit.history, file_pi)
