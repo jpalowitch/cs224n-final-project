@@ -1,0 +1,18 @@
+python char_model.py -max_length 50
+python char_model.py -max_length 50 -cell lstm
+python char_model.py -max_length 75
+python char_model.py -max_length 75 -cell lstm
+python char_model.py -max_length 100 
+python char_model.py -max_length 100 -cell lstm
+python char_model.py -max_length 150
+python char_model.py -max_length 150 -cell lstm
+python char_model.py -max_length 200
+python char_model.py -max_length 200 -cell lstm
+python char_model.py -max_length 250 
+python char_model.py -max_length 250 -cell lstm
+python char_model.py -max_length 150 -hidden_size 128
+python char_model.py -max_length 150 -cell lstm -hidden_size 128
+python char_model.py -max_length 200 -cell lstm -hidden_size 128
+python char_model.py -max_length 200 -hidden_size 128
+python char_model.py -max_length 250 -cell lstm -hidden_size 128
+python char_model.py -max_length 250 -hidden_size 128
