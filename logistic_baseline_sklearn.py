@@ -12,6 +12,9 @@ APPROACH = "ngram"
 CLASSIFIER = "logistic"
 FLAVOR = "sklearn-SAG"
 
+use_local_embeddings = False
+path = ""
+dims = 50
 
 def fit_logistic_ngram_sklearn(train, dev, test, dataset="toxic",
                                cnames=CLASS_NAMES):
@@ -30,15 +33,15 @@ def fit_logistic_ngram_sklearn(train, dev, test, dataset="toxic",
     elif dataset == "attack":
         vecpath = TFIDF_VECTORS_FILE_AGG
 
-    train_vecs, dev_vecs, test_vecs = \
-        vectorize_corpus_tf_idf(train, dev, test, sparse=True, path=vecpath)
-
-    # Uncomment below lines to run with GloVe vectors. Use use_local=True
-    # to use vectors trained on corpus
-    # sentences = get_tokenized_sentences(use_local=True, load_files=False)
-    # train_vecs = sentences.get("train").get("vectors")
-    # test_vecs = sentences.get("test").get("vectors")
-    # dev_vecs = sentences.get("dev").get("vectors")
+    if use_local_embeddings:
+        sentences = get_tokenized_sentences(use_local=True, load_files=False, \
+            local_embeddings_path=path, n_dims=dims)
+        train_vecs = sentences.get("train").get("vectors")
+        test_vecs = sentences.get("test").get("vectors")
+        dev_vecs = sentences.get("dev").get("vectors")
+    else:
+        train_vecs, dev_vecs, test_vecs = \
+            vectorize_corpus_tf_idf(train, dev, test, sparse=True, path=vecpath)
 
     # Doing one-vs-all training
     auc_scores = []
@@ -74,6 +77,18 @@ if __name__ == '__main__':
             pd.read_csv('train.csv').fillna(' '))
         cnames = CLASS_NAMES
         aucfn = "auc_scores.csv"
+    if "-local" in myargs:
+        local_path = myargs["-local"]
+        if os.path.isfile(local_path):
+            if "-dims" in myargs:
+                dims = int(myargs["-dims"])
+                use_local_embeddings = True
+                path = local_path
+            else:
+                print "Please speficy the number of dimensions to use custom vectors"
+        else:
+            print "Could not find embeddings with that path"
+
     auc_scores = fit_logistic_ngram_sklearn(train, dev, test, dataset=myargs['-dataset'], cnames=cnames)
     save_auc_scores(auc_scores, APPROACH, CLASSIFIER, FLAVOR, cnames=cnames,
                     fn=aucfn)

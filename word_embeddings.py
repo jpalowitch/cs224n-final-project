@@ -57,7 +57,7 @@ def vectorize_sentences_concat(df, embeddings):
         masks.append(mask)
     return sentences, masks
 
-def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequences, use_local=False, local_embeddings=None):
+def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequences, use_local=False, local_embeddings=None, n_dims=None):
     """ Vectorizes sentences by summing the GloVe representations of each word.
 
     Args:
@@ -66,6 +66,7 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
         sequences: word sequences in which each word is replaced by its index
         use_local: whether to use the embeddings trained on the corpus
         local_embeddings: custom embeddings trained on the corpus
+        n_dims: number of dimensions for the embedding
     Returns:
         sentences: list of vector representations of the sentences
     """
@@ -78,6 +79,8 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
     if use_local == True:
         print "Using local GloVe vectors!"
 
+    if n_dims is not None:
+        N_DIMENSIONS = n_dims
     for idx, token_ids in enumerate(sequences):
         if idx % 3000 == 0:
             print "On line: {}".format(idx)
@@ -102,7 +105,8 @@ def vectorize_sentence_average(word_index_reverse, pretrained_embeddings, sequen
     print "Done"
     return sentences
 
-def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_files=True, use_local=False):
+def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_files=True, use_local=False, \
+                            local_embeddings_path=None, n_dims=None):
     """ Returns an object containing the sentence vectors and word embeddings lookup
         for each dataset.
 
@@ -110,6 +114,8 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
         path: path to save the vectors to
         load_files: whether to use the saved values
         use_local: whether to use locally trained GloVe word embeddings
+        local_embeddings_path: path for local embeddings
+        n_dims: number of dimesions for the embedding
     Returns:
         sentence_vectors: Object containing sentence vectors and tokenizer
         information for each dataset.
@@ -134,7 +140,10 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
         test_sequences = tokenizer.texts_to_sequences(test_df)
 
         embeddings = get_pretrained_glove_vectors()
-        local_embeddings  = read_local_vectors()
+        if local_embeddings_path is not None:
+            local_embeddings  = read_local_vectors(path=local_embeddings_path)
+        else:
+            local_embeddings  = read_local_vectors()
 
         # maps word indices to words so that it can be read from the embeddings matrix
         word_index_reverse = {v:k for k, v in tokenizer.word_index.items()}
@@ -142,19 +151,22 @@ def get_tokenized_sentences(path="data/glove_tokenized_sentences.pkl", load_file
         sentence_vectors = {
             "train": {
                 "vectors": vectorize_sentence_average(word_index_reverse, embeddings, train_sequences, \
-                                                        use_local=use_local, local_embeddings=local_embeddings),
+                                                        use_local=use_local, local_embeddings=local_embeddings, \
+                                                        n_dims=n_dims),
                 "word_index": tokenizer.word_index,
                 "sequences": train_sequences
             },
             "dev": {
                 "vectors": vectorize_sentence_average(word_index_reverse, embeddings, dev_sequences, \
-                                                        use_local=use_local, local_embeddings=local_embeddings),
+                                                        use_local=use_local, local_embeddings=local_embeddings, \
+                                                        n_dims=n_dims),
                 "word_index": tokenizer.word_index,
                 "sequences": dev_sequences
             },
             "test": {
                 "vectors": vectorize_sentence_average(word_index_reverse, embeddings, test_sequences, \
-                                                        use_local=use_local, local_embeddings=local_embeddings),
+                                                        use_local=use_local, local_embeddings=local_embeddings,
+                                                        n_dims=n_dims),
                 "word_index": tokenizer.word_index,
                 "sequences": test_sequences
             }

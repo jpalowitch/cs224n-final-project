@@ -1,12 +1,10 @@
 # runs with random embeddings initializations
 python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05
 python glove.py -em 50 -wn 10 -nm 100000 -lr 0.05
-python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05
 python glove.py -em 50 -wn 5 -nm 10000 -lr 0.05
 python glove.py -em 50 -wn 10 -nm 10000 -lr 0.1
 python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05
 python glove.py -em 100 -wn 10 -nm 100000 -lr 0.05
-python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05
 python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05
 python glove.py -em 100 -wn 10 -nm 10000 -lr 0.1
 python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -ep 15
@@ -14,12 +12,39 @@ python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -ep 15
 # runs with initializations with pretrained vectors
 python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 50 -wn 10 -nm 100000 -lr 0.05 -pt True
-python glove.py -em 50 -wn 10 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 50 -wn 5 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 50 -wn 10 -nm 10000 -lr 0.1 -pt True
 python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 100 -wn 10 -nm 100000 -lr 0.05 -pt True
-python glove.py -em 100 -wn 10 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -pt True
 python glove.py -em 100 -wn 10 -nm 10000 -lr 0.1 -pt True
 python glove.py -em 100 -wn 5 -nm 10000 -lr 0.05 -pt True -ep 15
+
+# tests with logistic regression baseline
+# path is:
+# data/all_<embedding_size>_<num_words>_<num_epochs>_<learning_rate>_<window_size>_<initialize_with_pretrained_path>_embeddings.pkl
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.05_10_False_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_100000_2_0.05_10_False_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.05_5_False_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.1_10_False_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.05_10_False_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_100000_2_0.05_10_False_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.05_5_False_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.1_10_False_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_15_0.05_5_False_embeddings.pkl -dims 100
+
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.05_10_True_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_100000_2_0.05_10_True_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.05_5_True_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_50_10000_2_0.1_10_True_embeddings.pkl -dims 50
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.05_10_True_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_100000_2_0.05_10_True_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.05_5_True_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_2_0.1_10_True_embeddings.pkl -dims 100
+python logistic_baseline_sklearn.py -dataset toxic -local data/all_100_10000_15_0.05_5_True_embeddings.pkl -dims 100
+
+# run with RNNs
+python rnn_tensorflow.py -embeds ours -dataset attack -cell gru -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
+python rnn_tensorflow.py -embeds ours -dataset toxic -cell gru -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
+python rnn_tensorflow.py -embeds ours -dataset attack -cell lstm -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
+python rnn_tensorflow.py -embeds ours -dataset toxic -cell lstm -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
