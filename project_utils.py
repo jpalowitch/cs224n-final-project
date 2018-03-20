@@ -27,6 +27,7 @@ NUM_FEATURES = 10000
 SESS_SAVE_DIRECTORY = "sess_saves"
 ATTACK_AGGRESSION_FN = "attack_aggression_data.csv"
 EMBEDDING_FILE = 'glove.6B/glove.6B.100d.txt' # Originally 300d
+CHAR_EMBEDS = 'char_embeds.txt'
 
 def get_base2_labels(rows):
     """Converts a matrix of binary row vectors to labels.
@@ -463,3 +464,53 @@ def unique_chars(data):
         if i % 1000:
             print ('progress', unique_chars)
             print ('len: ', len(unique_chars))
+
+def preprocess_char(comments):
+    """
+    returns tuple, chars is set of unique characters from dataset
+    docs is list of processed comments
+    """
+    txt = ''
+    docs = []
+    sentences = []
+    targets = []
+    for comment in comments:
+        #comment = comment.lower()
+        #comment = comment.replace('\n', ' ')
+        docs.append(comment)
+    for doc in docs:
+        for s in doc:
+            txt += s 
+    chars = set(txt)
+    return chars, docs
+
+def get_char_features(char_indices, comments, maxlen):
+    X = np.ones((len(comments), maxlen))
+    for i, comment in enumerate(comments):
+        for t, char in enumerate(comment[-maxlen:]):
+            if char in char_indices:
+                X[i,(maxlen - 1- t)] = char_indices[char]
+            else:
+                X[i,(maxlen - 1- t)] = 0
+    return X
+
+def get_char_embeddings(char_indices,fn=CHAR_EMBEDS):
+    embedding_vectors = {}
+    with open(fn, 'r') as f:
+        for line in f:
+            line_split = line.strip().split(" ")
+            vec = np.array(line_split[1:], dtype=float)
+            char = line_split[0]
+            embedding_vectors[char] = vec
+
+    all_embs = np.stack(embedding_vectors.values())
+    emb_mean, emb_std = all_embs.mean(), all_embs.std()
+
+    nb_chars = len(char_indices)
+    embedding_matrix = np.random.normal(emb_mean, emb_std, (nb_chars,300))
+
+    for char, i in char_indices.items():
+        embedding_vector = embedding_vectors.get(char)
+        if embedding_vector is not None:
+            embedding_matrix[i] = embedding_vector
+    return embedding_matrix
