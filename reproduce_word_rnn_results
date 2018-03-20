@@ -48,3 +48,6 @@ python2 rnn_results.py -embeds stock -dataset toxic -cell lstm -adapt_lr -tag re
 python2 rnn_results.py -embeds stock -dataset attack -cell gru -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
 python2 rnn_results.py -embeds stock -dataset attack -cell lstm -adapt_lr -tag refresh -sigmoid -nepochs 5 -attn -bd -max_length 150
 
+### Doing best word-level rnns with custom embeddings
+python2 rnn_tensorflow.py -embeds ours -dataset attack -cell lstm -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
+python2 rnn_tensorflow.py -embeds ours -dataset toxic -cell gru -adapt_lr -sigmoid -nepochs 5 -attn -bd -max_length 150
