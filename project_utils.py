@@ -148,7 +148,7 @@ def calc_auc(labels, probs, mean=True):
         return aucs
 
 
-def save_auc_scores(scores, approach, classifier, flavor,
+def save_auc_scores_basic(scores, approach, classifier, flavor,
                     fn="auc_scores.csv", overwrite=True, cnames=CLASS_NAMES):
     """Records auc scores of approach-flavor run.
 
@@ -185,7 +185,7 @@ def save_auc_scores(scores, approach, classifier, flavor,
     old_data.to_csv(fn)
     return None
 
-def save_rnn_auc_scores(scores, fields, dataset, cnames, tag=None, overwrite=True):
+def save_auc_scores(scores, fields, dataset, cnames, tag=None, overwrite=True):
     """Records auc scores of rnn_tensorflow.py runs
     """
     if tag:

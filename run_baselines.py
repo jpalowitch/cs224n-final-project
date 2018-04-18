@@ -4,130 +4,107 @@ from project_utils import *
 from sklearn.feature_extraction.text import TfidfVectorizer
 from scipy.sparse import csr
 from sklearn.metrics import roc_auc_score
-from sys import argv
 
 import os
 import pandas as pd
+import argparse
+import random
+import copy
+random.seed(RUN_SEED)
+parser = argparse.ArgumentParser(description='Run baseline comment models.')
+parser.add_argument("-dataset", help="[toxic, attack]", type=str, default="toxic")
+parser.add_argument("-weight_reg", help="regularization exponent = 3, 2, 1, 0: beta = 10**-weight_reg if nonzero, else is zero; default is 0 == no regularization",
+type=int, default=0)
+parser.add_argument("-sigmoid", help="do sigmoid model instead of per-class", action="store_true")
+parser.add_argument("-nepochs", help="number of training epochs", type=int, default=50)
+parser.add_argument("-batch_size", help="integer batch size", default=100, type=int)
+args=parser.parse_args()
 
-# Getting command args
-# -nettype: either 'zero' or 'one', giving the number of hidden layers
-# -dataset: either 'toxic' or 'attack', telling which data set to analyze
-myargs = getopts(argv)
-
-APPROACH = "ngram"
-CLASSIFIER = "logistic"
-FLAVOR = "tensorflow-ADAM-refresh"
-
-reg_level = int(myargs['-reglevel'])
-if reg_level > 0:
-    FLAVOR = FLAVOR + '-reglevel' + str(reg_level)
-else:
-    FLAVOR = FLAVOR + '-noReg'
-
-# Parameters
+# Define params.
 learning_rate = 0.001
-training_epochs = 50
-beta_reg = 10**(-reg_level) * int(reg_level > 0) 
-print("beta_reg is ", beta_reg)
-batch_size = 100
 display_step = 1
-lr_decay = 1.0 
+weight_reg = 10.0**(-args.weight_reg) * int(args.weight_reg > 0)
 
-
-if  myargs['-dataset'] == 'attack':
+# Preprocess data.
+if  args.dataset == 'attack':
     vecpath = TFIDF_VECTORS_FILE_AGG
     if not os.path.isfile(ATTACK_AGGRESSION_FN):
         get_and_save_talk_data()
     train, dev, test = get_TDT_split(
         pd.read_csv(ATTACK_AGGRESSION_FN, index_col=0).fillna(' '))
     cnames = train.columns.values[0:2]
-    aucfn = "auc_scores_attack_baseline_refresh.csv"
-elif myargs['-dataset'] == 'toxic':
+    aucfn = "baseline_aucs.csv"
+elif args.dataset == 'toxic':
     vecpath = TFIDF_VECTORS_FILE_TOXIC
     train, dev, test = get_TDT_split(
         pd.read_csv('train.csv').fillna(' '))
     cnames = CLASS_NAMES
-    aucfn = "auc_scores_toxic_baseline_refresh.csv"
-
-
-# Get data and featurizing
+    aucfn = "baseline_aucs.csv"
 train_vecs, dev_vecs, test_vecs = vectorize_corpus_tf_idf(
     train, dev, test, sparse=True, path=vecpath, prot=2
 )
 n_train = train_vecs.shape[0]
-if batch_size is None:
-    batch_size = train.shape[0]
+if args.sigmoid:
+    nclasses = len(cnames)
+else:
+    nclasses = 2
 
-# tf Graph Input
-#x = tf.placeholder(tf.float32, [None, NUM_FEATURES])
+# Define graph input.
 x = tf.sparse_placeholder(tf.float32)
-y = tf.placeholder(tf.float32, [None, 2])
+y = tf.placeholder(tf.float32, [None, nclasses])
 
-# Constructing middle layers
-if myargs['-nettype'] == 'zero':
-    beta_reg = 0.0001
-    training_epochs = 50
-    W = tf.get_variable("weights",
-                        shape=[NUM_FEATURES, 2],
-                        initializer=tf.contrib.layers.xavier_initializer())
-    b = tf.Variable(tf.zeros([2]))
-    theta = tf.sparse_tensor_dense_matmul(x, W) + b
-elif myargs['-nettype'] == 'one':
-    beta_reg = 0.0001
-    FLAVOR = "tensorflow-ADAM-1layer"
-    training_epochs = 10
-    W = tf.get_variable("weights",
-                        shape=[NUM_FEATURES, hidden_size],
-                        initializer=tf.contrib.layers.xavier_initializer())
-    b = tf.Variable(tf.zeros([hidden_size]))
-    z = tf.sparse_tensor_dense_matmul(x, W) + b
-    h = tf.nn.relu(z)
-    h = tf.nn.dropout(h, 1 - dropout_rate)
-    W2 = tf.get_variable("weights2",
-                     shape=[hidden_size, 2],
-                     initializer=tf.contrib.layers.xavier_initializer())
-    b2 = tf.Variable(tf.zeros([2]))
-    theta = tf.matmul(h_drop, W2) + b2
+# Define layers.
+W = tf.get_variable("weights",
+                    shape=[NUM_FEATURES, nclasses],
+                    initializer=tf.contrib.layers.xavier_initializer())
+b = tf.Variable(tf.zeros([nclasses]))
+theta = tf.sparse_tensor_dense_matmul(x, W) + b
 
-# Get prediction (this will only be used for testing)
+# Get prediction (only used for testing).
 pred = tf.nn.softmax(theta)
 
-# Get cost directly (without needing prediction above)
+# Get cost directly (without needing prediction above).
 cost = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits(logits=theta, labels=y) + \
-        tf.nn.l2_loss(W) * beta_reg
+    tf.nn.softmax_cross_entropy_with_logits_v2(logits=theta, labels=y) + \
+        tf.nn.l2_loss(W) * weight_reg
 )
 
-# Gradient Descent
+# Define optimizer.
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
-
+    
 # Final scoring
-def calc_auc_tf(X, Y): 
-    return calc_auc(Y[:, 1], pred.eval({x: X})[:, 1])
+def calc_auc_tf(X, Y, take_mean=True):
+    if args.sigmoid:
+        return calc_auc(Y, pred.eval({x: X}), take_mean)
+    else:
+        return calc_auc(Y[:, 1], pred.eval({x: X})[:, 1])    
 
 # Making weight saving functionality
 saver = tf.train.Saver()
 
-# Initialize the variables (i.e. assign their default value)
+# Initialize variables
 global_init = tf.global_variables_initializer()
 
-
 auc_scores = []
-pred_mat = np.ndarray(shape = (test_vecs.shape[0],0))
-target_mat = np.ndarray(shape = (test_vecs.shape[0],0))
+
 for target_class in range(len(cnames)):
     print("doing class " + cnames[target_class])
     
-    # Getting labels for training
-    train_labels = train[cnames[target_class]].values
-    train_target = get_onehots_from_labels(train_labels)
-    dev_labels = dev[cnames[target_class]].values
-    dev_target = get_onehots_from_labels(dev_labels)
-    test_labels = test[cnames[target_class]].values
-    test_target = get_onehots_from_labels(test_labels)
-    
-    # Getting weight saver fn
-    save_fn = saver_fn(APPROACH, CLASSIFIER, FLAVOR, cnames[target_class])
+    # Get labels for training and save fn.
+    save_fields = copy.deepcopy(vars(args))
+    if args.sigmoid:
+        train_target = train.values
+        dev_target = dev.values
+        test_target = test.values
+        save_fn = saver_fn_rnn(save_fields, "sigmoid")
+    else:
+        train_labels = train[cnames[target_class]].values
+        train_target = get_onehots_from_labels(train_labels)
+        dev_labels = dev[cnames[target_class]].values
+        dev_target = get_onehots_from_labels(dev_labels)
+        test_labels = test[cnames[target_class]].values
+        test_target = get_onehots_from_labels(test_labels)
+        save_fn = saver_fn_rnn(save_fields, cnames[target_class])
 
     # Start training
     max_auc = 0
@@ -137,12 +114,12 @@ for target_class in range(len(cnames)):
         sess.run(global_init)
         
         # Training 
-        for epoch in range(training_epochs):
+        for epoch in range(args.nepochs):
             avg_cost = 0.
-            total_batch = int(n_train/batch_size)
+            total_batch = int(n_train / args.batch_size)
             
             # Loop over batches
-            minibatches = minibatch(train_vecs, train_target, batch_size)
+            minibatches = minibatch(train_vecs, train_target, args.batch_size)
             for batch_xs_mat, batch_ys in minibatches:
                 batch_xs = get_sparse_input(batch_xs_mat)
                 _, c = sess.run([optimizer, cost], feed_dict={x: batch_xs,
@@ -162,6 +139,19 @@ for target_class in range(len(cnames)):
         
         print("Optimization Finished!")
         saver.restore(sess, save_fn)
+        
+        if args.sigmoid:
+            auc_scores = calc_auc_tf(get_sparse_input(test_vecs), test_target, 
+                                     mean=False)
+        else:
+            AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
+            print ("--Test AUC:", AUC)
+            auc_scores.append(AUC)
+        sess.close()
+        
+    if args.sigmoid:
+        break
+                
         AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
         print ("Test AUC:", AUC)
         auc_scores.append(AUC)
@@ -171,12 +161,8 @@ for target_class in range(len(cnames)):
         target_mat = np.column_stack((target_mat, test_target[:,1]))
         
         sess.close()
-#pred_mat = np.column_stack((pred_mat, target_mat))
-#diagnostics = Diagnostics(build = 'tf', 
-#                          model_type = 'logistic-' + myargs['-nettype'], 
-#                          preds_targets = pred_mat,
-#                          dataset = myargs['-dataset'])
-#diagnostics.do_all_diagnostics()
-save_auc_scores(auc_scores, APPROACH, CLASSIFIER, fn=aucfn, cnames=cnames,
-                flavor=FLAVOR)
+
+fields = vars(args)
+dataset = fields.pop('dataset')
+save_auc_scores(auc_scores, fields, dataset, cnames)
 
