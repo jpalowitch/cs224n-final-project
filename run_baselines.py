@@ -61,13 +61,14 @@ b = tf.Variable(tf.zeros([nclasses]))
 theta = tf.sparse_tensor_dense_matmul(x, W) + b
 
 # Get prediction (only used for testing).
-pred = tf.nn.softmax(theta)
-
+pred = tf.nn.sigmoid(theta) if args.sigmoid else tf.nn.softmax(theta)
+    
 # Get cost directly (without needing prediction above).
-cost = tf.reduce_mean(
-    tf.nn.softmax_cross_entropy_with_logits_v2(logits=theta, labels=y) + \
-        tf.nn.l2_loss(W) * weight_reg
-)
+if args.sigmoid:
+    ce_loss = tf.nn.sigmoid_cross_entropy_with_logits(logits=theta, labels=y)
+else:
+    ce_loss = tf.nn.softmax_cross_entropy_with_logits_v2(logits=theta, labels=y)
+cost = tf.reduce_mean(tf.nn.l2_loss(W) * weight_reg + ce_loss)
 
 # Define optimizer.
 optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate).minimize(cost)
@@ -93,9 +94,9 @@ for target_class in range(len(cnames)):
     # Get labels for training and save fn.
     save_fields = copy.deepcopy(vars(args))
     if args.sigmoid:
-        train_target = train.values
-        dev_target = dev.values
-        test_target = test.values
+        train_target = train[cnames].values
+        dev_target = dev[cnames].values
+        test_target = test[cnames].values
         save_fn = saver_fn_rnn(save_fields, "sigmoid")
     else:
         train_labels = train[cnames[target_class]].values
@@ -142,7 +143,7 @@ for target_class in range(len(cnames)):
         
         if args.sigmoid:
             auc_scores = calc_auc_tf(get_sparse_input(test_vecs), test_target, 
-                                     mean=False)
+                                     take_mean=False)
         else:
             AUC = calc_auc_tf(get_sparse_input(test_vecs), test_target)
             print ("--Test AUC:", AUC)
