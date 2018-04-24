@@ -12,3 +12,9 @@ data/
 train.csv
 auc_scores.csv
 auc_scores_rnn_toxic.csv
+
+*.tsv
+
+attack_aggression_data\.csv
+
+test\.csv

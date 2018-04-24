@@ -421,9 +421,9 @@ def get_and_save_talk_data():
                            'aggression_annotations.tsv')
         print("--done")
 
-    # Pre-processing
-    def get_csv(fn):
-        return pd.read_csv(fn, sep='\t', index_col=0)
+        # Pre-processing
+        def get_csv(fn):
+            return pd.read_csv(fn, sep='\t', index_col=0)
     att_com = get_csv('personal_attack_comments.tsv')
     att_ann = get_csv('personal_attack_annotations.tsv')
     agg_com = get_csv('aggression_comments.tsv')
